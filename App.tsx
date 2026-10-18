@@ -87,6 +87,51 @@ function SettingButton({
   );
 }
 
+function WallpaperCard({
+  uri,
+  busy,
+  disabled,
+  backgroundColor,
+  accentColor,
+  onPress,
+}: {
+  uri: string | null;
+  busy: boolean;
+  disabled: boolean;
+  backgroundColor: string;
+  accentColor: string;
+  onPress(): void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={
+        uri ? "Change custom wallpaper" : "Choose custom wallpaper"
+      }
+      onPress={onPress}
+      disabled={disabled}
+      accessibilityState={{ disabled }}
+      style={[styles.wallpaperCard, { backgroundColor, opacity: disabled ? 0.5 : 1 }]}
+    >
+      {uri && (
+        <Image
+          source={{ uri }}
+          resizeMode="cover"
+          style={StyleSheet.absoluteFill}
+        />
+      )}
+      <View style={styles.wallpaperCardShade} />
+      <Text style={[styles.wallpaperCardText, { color: accentColor }]}>
+        {busy
+          ? "Saving wallpaper…"
+          : uri
+            ? "Change wallpaper"
+            : "Choose custom wallpaper"}
+      </Text>
+    </Pressable>
+  );
+}
+
 function Home() {
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -537,24 +582,17 @@ function Home() {
               <Text style={[styles.eyebrow, { color: theme.muted }]}>
                 WALLPAPER
               </Text>
-              {prefs.customWallpaper && (
-                <Image
-                  accessibilityLabel="Current custom wallpaper"
-                  source={{ uri: wallpaperUri(prefs.customWallpaper) }}
-                  resizeMode="cover"
-                  style={styles.wallpaperPreview}
-                />
-              )}
-              <SettingButton
-                label={
-                  wallpaperBusy
-                    ? "Saving wallpaper…"
-                    : "Choose custom wallpaper"
+              <WallpaperCard
+                uri={
+                  prefs.customWallpaper
+                    ? wallpaperUri(prefs.customWallpaper)
+                    : null
                 }
+                busy={wallpaperBusy}
+                disabled={wallpaperBusy || !ready}
                 onPress={() => {
                   void chooseWallpaper();
                 }}
-                disabled={wallpaperBusy || !ready}
                 backgroundColor={theme.panel}
                 accentColor={theme.accent}
               />
@@ -773,12 +811,22 @@ const styles = StyleSheet.create({
     marginTop: 18,
     marginBottom: 16,
   },
-  wallpaperPreview: {
-    width: "100%",
-    height: 180,
+  wallpaperCard: {
+    minHeight: 180,
     borderRadius: 18,
     marginBottom: 16,
-    backgroundColor: "#222",
+    overflow: "hidden",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  wallpaperCardShade: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: "rgba(0, 0, 0, 0.32)",
+  },
+  wallpaperCardText: {
+    fontSize: 14,
+    fontWeight: "600",
+    letterSpacing: 0.2,
   },
   themeHeaderRow: {
     flexDirection: "row",
