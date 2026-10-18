@@ -5,6 +5,7 @@ import {
   Alert,
   AppState,
   BackHandler,
+  Image,
   Modal,
   PixelRatio,
   Pressable,
@@ -532,9 +533,18 @@ function Home() {
               <Text style={[styles.note, { color: theme.muted }]}>
                 A quiet home. Turn the dial. Find your focus.
               </Text>
+              <Text style={[styles.sectionTitle, { color: theme.muted }]}>APPEARANCE</Text>
               <Text style={[styles.eyebrow, { color: theme.muted }]}>
                 WALLPAPER
               </Text>
+              {prefs.customWallpaper && (
+                <Image
+                  accessibilityLabel="Current custom wallpaper"
+                  source={{ uri: wallpaperUri(prefs.customWallpaper) }}
+                  resizeMode="cover"
+                  style={styles.wallpaperPreview}
+                />
+              )}
               <SettingButton
                 label={
                   wallpaperBusy
@@ -616,15 +626,13 @@ function Home() {
                   </Text>
                 </Pressable>
               ))}
-              {(["left", "statusBar", "dots", "sound", "haptics"] as const).map(
+              {(["left", "dots", "sound", "haptics"] as const).map(
                 (key) => (
                   <View style={styles.setting} key={key}>
                     <Text style={{ color: theme.fg }}>
                       {key === "left"
                         ? "Dial on the left"
-                        : key === "statusBar"
-                          ? "Status bar"
-                          : key === "dots"
+                        : key === "dots"
                             ? "Notification dots"
                             : key === "sound"
                               ? "Dial sound"
@@ -639,6 +647,25 @@ function Home() {
                 ),
               )}
               <SettingButton
+                label="Choose apps for your dial"
+                onPress={() => {
+                  setPanel("search");
+                }}
+                backgroundColor={theme.panel}
+                accentColor={theme.accent}
+              />
+              <Text style={[styles.note, { color: theme.muted }]}>Add your favorite apps from search to fill the dial.</Text>
+              <Text style={[styles.note, { color: theme.muted }]}>Sound follows your phone’s ringer mode. System touch sounds can stay off.</Text>
+              <Text style={[styles.sectionTitle, { color: theme.muted }]}>SYSTEM</Text>
+              <View style={styles.setting}>
+                <Text style={{ color: theme.fg }}>Status bar</Text>
+                <Switch
+                  accessibilityLabel="Status bar"
+                  value={prefs.statusBar}
+                  onValueChange={(value) => change("statusBar", value)}
+                />
+              </View>
+              <SettingButton
                 label="Manage app notifications"
                 onPress={() => {
                   void openNotificationSettings().catch(() =>
@@ -648,24 +675,6 @@ function Home() {
                     ),
                   );
                 }}
-                backgroundColor={theme.panel}
-                accentColor={theme.accent}
-              />
-              <Text style={[styles.note, { color: theme.muted }]}>
-                Sound follows your phone’s ringer mode. System touch sounds can
-                stay off. Add your favorite apps from search to fill the dial.
-              </Text>
-              <SettingButton
-                label="Choose apps for your dial"
-                onPress={() => {
-                  setPanel("search");
-                }}
-                backgroundColor={theme.panel}
-                accentColor={theme.accent}
-              />
-              <SettingButton
-                label="Open-source licenses"
-                onPress={() => setPanel("licenses")}
                 backgroundColor={theme.panel}
                 accentColor={theme.accent}
               />
@@ -682,10 +691,14 @@ function Home() {
                 backgroundColor={theme.panel}
                 accentColor={theme.accent}
               />
-              <Text style={[styles.note, { color: theme.muted }]}>
-                To switch back later: Android Settings → Apps → Default apps →
-                Home app.
-              </Text>
+              <Text style={[styles.note, { color: theme.muted }]}>To switch back later: Android Settings → Apps → Default apps → Home app.</Text>
+              <Text style={[styles.sectionTitle, { color: theme.muted }]}>ABOUT</Text>
+              <SettingButton
+                label="Open-source licenses"
+                onPress={() => setPanel("licenses")}
+                backgroundColor={theme.panel}
+                accentColor={theme.accent}
+              />
             </ScrollView>
           )}
         </SafeAreaView>
@@ -754,6 +767,19 @@ const styles = StyleSheet.create({
   },
   icon: { width: 40, height: 40, borderRadius: 10 },
   settings: { padding: 24 },
+  sectionTitle: {
+    fontSize: 10,
+    letterSpacing: 3,
+    marginTop: 18,
+    marginBottom: 16,
+  },
+  wallpaperPreview: {
+    width: "100%",
+    height: 180,
+    borderRadius: 18,
+    marginBottom: 16,
+    backgroundColor: "#222",
+  },
   themeHeaderRow: {
     flexDirection: "row",
     alignItems: "center",
