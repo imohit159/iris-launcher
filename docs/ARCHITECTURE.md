@@ -14,7 +14,7 @@ Expo Go cannot host launcher native APIs. Use Expo with a custom development cli
 
 ## Technology decisions and boundaries
 
-Official blank TypeScript Expo template, SDK 57 / React Native 0.86.3 (SDK 58 requires unavailable Android platform 37); pnpm; Expo-compatible dependencies selected by expo install. src/launcher owns Android catalog and launching; src/preferences owns validated persisted preferences; src/components owns dial interaction; App orchestrates presentation. plugins/withAndroidHome.js owns the HOME intent so clean prebuild preserves it. A small local Expo module owns preloaded SoundPool dial-click feedback, which available launcher APIs do not provide.
+Official blank TypeScript Expo template, SDK 57 / React Native 0.86.3 (SDK 58 requires unavailable Android platform 37); pnpm; Expo-compatible dependencies selected by expo install. src/launcher owns Android catalog and launching; src/preferences owns validated persisted preferences; src/themes owns reference palettes and artwork selection; src/home owns clock formatting; src/components owns presentation and dial interaction; App orchestrates presentation. plugins/withAndroidHome.js owns the HOME intent so clean prebuild preserves it. A small local Expo module owns preloaded SoundPool dial-click feedback, which available launcher APIs do not provide.
 
 ## Data flow and API strategy
 

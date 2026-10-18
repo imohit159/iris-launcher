@@ -13,12 +13,12 @@ Node 24.22.0 LTS, pnpm 12.9.1, Expo SDK 57, React Native 0.86.3 and JDK 17. Expo
 - Rotating app-name dial, drag/flick and reference inertial settling; tap another app to select, selected app to launch.
 - Search installed apps, add/remove favorites, and an intentionally empty dial until apps are chosen.
 - Inline letter dial by holding an unselected app and sliding/releasing; selected-app long press offers app info and removal.
-- Dusk, ember, signal and paper palettes; left/right placement and five reference dial layouts.
+- All 27 Detent themes with original palettes, bundled wallpapers/tinted artwork, light/dark status-bar contrast, left/right placement and five dial layouts.
 - Preloaded dial click and Expo Android haptics, with independent switches. Sound respects silent/vibrate mode and works when Android touch sounds are disabled.
 - Detent-style clock/date with no home header; hold empty space for settings. Clock shortcut, saved preferences, first-run settings and default-home selection.
 - Refresh on foreground, package installation and removal; user-visible load/save/launch errors.
 
-This is the first Expo baseline, not complete Detent parity. Still to implement: notification dots and permission flow, dynamic app shortcuts, theme wallpapers and custom photos, lock-screen wallpaper, hardware keyboard controls, launch animation polish. See [architecture and phases](docs/ARCHITECTURE.md).
+This is the first Expo baseline, not complete Detent parity. Still to implement: notification dots and permission flow, dynamic app shortcuts, custom photos and lock-screen wallpaper, hardware keyboard controls, launch animation polish. See [architecture and phases](docs/ARCHITECTURE.md).
 
 ## Develop on this machine
 
@@ -67,7 +67,7 @@ cd android
 
 `plugins/withAndroidHome.js` registers MAIN/HOME/DEFAULT on MainActivity and preserves singleTask behavior across clean prebuilds. `react-native-launcher-kit` handles app discovery and launching. `modules/dial-feedback` is a local Expo module for low-latency Android dial clicks; Expo autolinking discovers it automatically.
 
-`pnpm check` runs TypeScript, ESLint and eight Node tests covering catalog behavior, reference geometry, hold rebasing and motion. Native behavior, sound, haptics, gesture feel and default-home lifecycle require phone testing. Never infer those from unit tests.
+`pnpm check` runs TypeScript, ESLint and ten Node tests covering catalog behavior, reference geometry, hold rebasing, motion, 24-hour formatting and theme completeness. Native behavior, sound, haptics, gesture feel and default-home lifecycle require phone testing. Never infer those from unit tests.
 
 Generated native projects, SDK paths, dependencies and signing credentials remain ignored. Development builds include network access for Metro; launcher features do not upload app data.
 
@@ -106,3 +106,12 @@ The check rejects another screen or too few rendered frames; compare measurement
 The local Detent port adds its five layouts, JetBrains Mono fonts, exact design-coordinate geometry, circular wrapping, velocity decay/settling, inline letter scrubbing, and compact home search. Holding empty space opens settings. A letter scrub commits the first app of the chosen letter, as in Detent.
 
 `pnpm check` passes all eight tests; Expo dependency compatibility passes; ARM64 `assembleDebugOptimized` succeeds. Installed on vivo V2228 through USB with Metro. The initial four-swipe replay measured 5.94% janky frames / 14 ms p95 (101 frames); this is a development-build sample, not release performance certification. On-device screenshots confirm the app/letter modes and compact search. Device interaction checks also pass for stationary letter-hold release, repeated hold stability, selected-app menu without accidental launch, and opening app search. All five layouts rendered on the phone; the original soft/double preference was restored. No GitHub release was created.
+
+
+## Themes and clock
+
+Hold empty space (or the clock) to open settings and choose from all 27 Detent themes. The original phone themes include tinted dot-hand artwork; wallpaper themes include the reference readability overlays. The clock always uses 24-hour local time, including `00:00` at midnight. Its time/date ink edges align on either side of the screen, with the reference line heights and spacing. Theme assets load locally, with no backend or extra dependency. See [provenance and implementation](docs/DETENT-REFERENCE.md).
+
+Theme/clock verification: ten tests, TypeScript, lint, Expo dependency compatibility, Android `assembleDebugOptimized`, and Android JavaScript/asset export pass. On vivo V2228, retro-82 wallpaper, catppuccin-latte light theme/status-bar contrast, and dusk tinted art were selected and visually checked; the original ember preference was restored. No GitHub release was created.
+
+After adding the theme canvas and clock, a guarded four-swipe development replay on the same vivo recorded 12.62% janky frames / 15 ms p95 (103 frames), passing the 15% guard. This remains a development measurement.

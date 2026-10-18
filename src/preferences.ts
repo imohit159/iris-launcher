@@ -1,36 +1,7 @@
 import { layouts } from "./dial/reference";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-export const themes = {
-  dusk: {
-    bg: "#111814",
-    fg: "#e5e9dc",
-    muted: "#829080",
-    accent: "#c2e69a",
-    panel: "#1d281f",
-  },
-  ember: {
-    bg: "#201712",
-    fg: "#f4e5d6",
-    muted: "#ad8b77",
-    accent: "#f3a874",
-    panel: "#33231b",
-  },
-  signal: {
-    bg: "#10171f",
-    fg: "#e0e8ee",
-    muted: "#7c94a5",
-    accent: "#96d8eb",
-    panel: "#1d2b38",
-  },
-  paper: {
-    bg: "#f2eee4",
-    fg: "#29352b",
-    muted: "#77816f",
-    accent: "#526b39",
-    panel: "#e4e2d7",
-  },
-};
-export type Theme = typeof themes.dusk;
+import { themes } from "./themes/catalog";
+export { themes, type Theme } from "./themes/catalog";
 export type Preferences = {
   theme: keyof typeof themes;
   layout: number;

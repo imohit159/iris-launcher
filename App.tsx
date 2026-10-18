@@ -24,6 +24,8 @@ import {
 } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import * as IntentLauncher from "expo-intent-launcher";
+import { HomeClock } from "./src/components/HomeClock";
+import { ThemeBackdrop } from "./src/components/ThemeBackdrop";
 import { Dial } from "./src/components/Dial";
 import {
   launch,
@@ -56,7 +58,6 @@ function Home() {
   const k = width / DESIGN.width;
   const [fontsLoaded] = useFonts({
     JetBrainsMono: require("./assets/fonts/jetbrains_mono_regular.ttf"),
-    JetBrainsMonoLight: require("./assets/fonts/jetbrains_mono_light.ttf"),
   });
   const [scrubbing, setScrubbing] = useState(false);
   const [apps, setApps] = useState<InstalledApp[]>([]);
@@ -120,7 +121,13 @@ function Home() {
         void refresh();
       }
     });
-    const timer = setInterval(() => setNow(new Date()), 15000);
+    let timer: ReturnType<typeof setTimeout>;
+    const updateClock = () => {
+      const current = new Date();
+      setNow(current);
+      timer = setTimeout(updateClock, 60000 - (current.getTime() % 60000) + 20);
+    };
+    updateClock();
     const back = BackHandler.addEventListener("hardwareBackPress", () => {
       setPanel(null);
       return true;
@@ -130,7 +137,7 @@ function Home() {
       stop();
       subscription.remove();
       back.remove();
-      clearInterval(timer);
+      clearTimeout(timer);
     };
   }, [refresh]);
   useEffect(() => {
@@ -191,7 +198,8 @@ function Home() {
   );
   return (
     <View style={[styles.screen, { backgroundColor: theme.bg }]}>
-      <StatusBar style={prefs.theme === "paper" ? "dark" : "light"} />
+      <StatusBar style={theme.light ? "dark" : "light"} />
+      <ThemeBackdrop theme={theme} left={prefs.left} />
       {loading || !ready ? (
         <View style={styles.center}>
           <ActivityIndicator color={theme.accent} />
@@ -220,7 +228,14 @@ function Home() {
           onTick={() => tick(prefs.sound, prefs.haptics)}
         />
       )}
-      <Pressable
+      <HomeClock
+        now={now}
+        scale={k}
+        top={Math.max(84 * k, insets.top + 44 * k)}
+        width={width - 56 * k}
+        left={prefs.left}
+        scrubbing={scrubbing}
+        theme={theme}
         onPress={() => {
           try {
             openClock();
@@ -228,52 +243,8 @@ function Home() {
             Alert.alert("Clock unavailable");
           }
         }}
-        onLongPress={() => setPanel("settings")}
-        accessibilityRole="button"
-        accessibilityLabel="Open clock; hold for settings"
-        style={[
-          styles.clockBlock,
-          {
-            top: Math.max(84 * k, insets.top + 44 * k),
-            [prefs.left ? "right" : "left"]: 28 * k,
-            alignItems: prefs.left ? "flex-end" : "flex-start",
-            gap: 6 * k,
-            opacity: scrubbing ? 0.25 : 1,
-          },
-        ]}
-        pointerEvents={scrubbing ? "none" : "auto"}
-      >
-        <Text
-          allowFontScaling={false}
-          style={{
-            color: theme.fg,
-            fontFamily: fontsLoaded ? "JetBrainsMonoLight" : "monospace",
-            fontSize: 68 * k,
-            lineHeight: 68 * k,
-            letterSpacing: -3.4 * k,
-            includeFontPadding: false,
-          }}
-        >
-          {now.toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit",
-            hour12: false,
-          })}
-        </Text>
-        <Text
-          allowFontScaling={false}
-          style={{
-            color: theme.muted,
-            fontFamily: fontsLoaded ? "JetBrainsMono" : "monospace",
-            fontSize: 13 * k,
-            lineHeight: 15.6 * k,
-            letterSpacing: 0.26 * k,
-            includeFontPadding: false,
-          }}
-        >
-          {`${now.toLocaleDateString("en", { weekday: "short" })} ${now.getDate()} ${now.toLocaleDateString("en", { month: "short" })}`.toLowerCase()}
-        </Text>
-      </Pressable>
+        onSettings={() => setPanel("settings")}
+      />
       {!scrubbing && (
         <Pressable
           accessibilityRole="button"
@@ -443,7 +414,7 @@ function Home() {
                 A quiet home. Turn the dial. Find your focus.
               </Text>
               <Text style={[styles.eyebrow, { color: theme.muted }]}>
-                COLOUR
+                THEME
               </Text>
               <View style={styles.swatches}>
                 {(Object.keys(themes) as (keyof typeof themes)[]).map(
@@ -553,7 +524,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  clockBlock: { position: "absolute" },
   center: {
     position: "absolute",
     top: 0,
