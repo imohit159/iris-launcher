@@ -8,6 +8,7 @@ import {
   FlatList,
   Image,
   Modal,
+  PixelRatio,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -24,6 +25,8 @@ import {
 } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import * as IntentLauncher from "expo-intent-launcher";
+import { pickWallpaper } from "./src/wallpaper/picker";
+import { wallpaperUri } from "./src/wallpaper/storage";
 import { HomeClock } from "./src/components/HomeClock";
 import { ThemeBackdrop } from "./src/components/ThemeBackdrop";
 import { Dial } from "./src/components/Dial";
@@ -60,6 +63,8 @@ function Home() {
     JetBrainsMono: require("./assets/fonts/jetbrains_mono_regular.ttf"),
   });
   const [scrubbing, setScrubbing] = useState(false);
+  const [wallpaperBusy, setWallpaperBusy] = useState(false);
+  const wallpaperOperation = useRef(false);
   const [apps, setApps] = useState<InstalledApp[]>([]);
   const [prefs, setPrefs] = useState(defaults);
   const [ready, setReady] = useState(false);
@@ -187,11 +192,37 @@ function Home() {
       { text: "Remove from dial", onPress: () => favorite(app.packageName) },
       { text: "Cancel", style: "cancel" },
     ]);
-  const button = (label: string, action: () => void) => (
+  const chooseWallpaper = async () => {
+    if (wallpaperOperation.current || !ready) return;
+    wallpaperOperation.current = true;
+    setWallpaperBusy(true);
+    try {
+      const name = await pickWallpaper(
+        PixelRatio.getPixelSizeForLayoutSize(width),
+        PixelRatio.getPixelSizeForLayoutSize(height),
+      );
+      if (alive.current && name) change("customWallpaper", name);
+    } catch {
+      if (alive.current)
+        Alert.alert(
+          "Wallpaper unavailable",
+          "Could not use that photo. Try another image.",
+        );
+    } finally {
+      wallpaperOperation.current = false;
+      if (alive.current) setWallpaperBusy(false);
+    }
+  };
+  const button = (label: string, action: () => void, disabled = false) => (
     <Pressable
       accessibilityRole="button"
       onPress={action}
-      style={[styles.button, { backgroundColor: theme.panel }]}
+      disabled={disabled}
+      accessibilityState={{ disabled }}
+      style={[
+        styles.button,
+        { backgroundColor: theme.panel, opacity: disabled ? 0.5 : 1 },
+      ]}
     >
       <Text style={{ color: theme.accent }}>{label}</Text>
     </Pressable>
@@ -199,7 +230,26 @@ function Home() {
   return (
     <View style={[styles.screen, { backgroundColor: theme.bg }]}>
       <StatusBar style={theme.light ? "dark" : "light"} />
-      <ThemeBackdrop theme={theme} left={prefs.left} />
+      <ThemeBackdrop
+        theme={theme}
+        left={prefs.left}
+        customWallpaper={
+          prefs.customWallpaper ? wallpaperUri(prefs.customWallpaper) : null
+        }
+        onWallpaperError={() => {
+          const failed = prefs.customWallpaper;
+          if (!failed) return;
+          setPrefs((previous) =>
+            previous.customWallpaper === failed
+              ? { ...previous, customWallpaper: null }
+              : previous,
+          );
+          Alert.alert(
+            "Wallpaper unavailable",
+            "Your theme wallpaper is shown. Choose another photo in settings.",
+          );
+        }}
+      />
       {loading || !ready ? (
         <View style={styles.center}>
           <ActivityIndicator color={theme.accent} />
@@ -412,6 +462,34 @@ function Home() {
             <ScrollView contentContainerStyle={styles.settings}>
               <Text style={[styles.note, { color: theme.muted }]}>
                 A quiet home. Turn the dial. Find your focus.
+              </Text>
+              <Text style={[styles.eyebrow, { color: theme.muted }]}>
+                WALLPAPER
+              </Text>
+              {button(
+                wallpaperBusy ? "Saving wallpaper…" : "Choose custom wallpaper",
+                () => {
+                  void chooseWallpaper();
+                },
+                wallpaperBusy || !ready,
+              )}
+              {prefs.customWallpaper &&
+                button(
+                  "Use theme wallpaper",
+                  () => change("customWallpaper", null),
+                  wallpaperBusy,
+                )}
+              <Text
+                style={{
+                  color: theme.muted,
+                  fontSize: 13,
+                  lineHeight: 20,
+                  marginBottom: 24,
+                }}
+              >
+                {prefs.customWallpaper
+                  ? "Your photo · theme colours stay active."
+                  : "Theme wallpaper. Choose a photo to make it yours."}
               </Text>
               <Text style={[styles.eyebrow, { color: theme.muted }]}>
                 THEME

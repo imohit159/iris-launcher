@@ -1,6 +1,9 @@
+import { useEffect, useEffectEvent, useState } from "react";
 import { StyleSheet, useWindowDimensions } from "react-native";
 import {
   Canvas,
+  Skia,
+  type SkImage,
   ColorMatrix,
   Group,
   Image,
@@ -15,13 +18,40 @@ import { artwork } from "../themes/assets";
 export function ThemeBackdrop({
   theme,
   left,
+  customWallpaper,
+  onWallpaperError,
 }: {
   theme: Theme;
   left: boolean;
+  customWallpaper: string | null;
+  onWallpaperError(): void;
 }) {
   const { width, height } = useWindowDimensions();
-  const wall = left && theme.wallLeft ? theme.wallLeft : theme.wall;
-  const image = useImage(artwork[wall ?? "hands"]);
+  const wall =
+    customWallpaper ?? (left && theme.wallLeft ? theme.wallLeft : theme.wall);
+  const builtin = useImage(
+    artwork[(left && theme.wallLeft ? theme.wallLeft : theme.wall) ?? "hands"],
+  );
+  const [customImage, setCustomImage] = useState<SkImage | null>(null);
+  const reportError = useEffectEvent(onWallpaperError);
+  useEffect(() => {
+    if (!customWallpaper) return;
+    let cancelled = false;
+    void Skia.Data.fromURI(customWallpaper)
+      .then((data) => {
+        const decoded = Skia.Image.MakeImageFromEncoded(data);
+        if (!decoded) throw new Error("Cannot decode wallpaper");
+        if (cancelled) decoded.dispose();
+        else setCustomImage(decoded);
+      })
+      .catch(() => {
+        if (!cancelled) reportError();
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [customWallpaper]);
+  const image = customWallpaper ? (customImage ?? builtin) : builtin;
   const rgb = (color: string) =>
     [1, 3, 5].map((i) => parseInt(color.slice(i, i + 2), 16) / 255);
   const bg = rgb(theme.bg),
