@@ -70,3 +70,15 @@ cd android
 `pnpm check` runs TypeScript, ESLint and four Node tests covering catalog normalization, search, favorites, alphabet lookup and icon URIs. Native behavior, sound, haptics, gesture feel and default-home lifecycle require phone testing. Never infer those from unit tests.
 
 Generated native projects, SDK paths, dependencies and signing credentials remain ignored. Development builds include network access for Metro; launcher features do not upload app data.
+
+## Verified on October 18, 2026
+
+- `pnpm check`: TypeScript, lint, and all four tests pass.
+- Expo dependency check passes; Expo Doctor passes all 21 checks.
+- Clean Android prebuild preserves HOME/DEFAULT, singleTask and package-query permission; the local sound module is autolinked.
+- Android production JavaScript export succeeds.
+- ARM64 `assembleDebug` succeeds; APK signature and packaged HOME registration verified.
+
+Debug APK: `android/app/build/outputs/apk/debug/app-debug.apk` (ignored build output). No Android phone was connected during verification; physical-device behavior remains unverified.
+
+Initial Maven downloads hit TLS errors and stalled requests. The successful build used `-Dorg.gradle.internal.http.connectionTimeout=15000 -Dorg.gradle.internal.http.socketTimeout=15000`; repeat with these flags if dependency downloads stall. TLS certificate verification stays enabled.
