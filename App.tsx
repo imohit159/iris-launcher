@@ -150,6 +150,9 @@ function Home() {
   const [panel, setPanel] = useState<"search" | "settings" | "licenses" | null>(
     null,
   );
+  const [expandedAppearance, setExpandedAppearance] = useState<
+    "theme" | "dial" | null
+  >(null);
   const [heldApp, setHeldApp] = useState<InstalledApp | null>(null);
   const [themeDialMode, setThemeDialMode] = useState(false);
   const [previewThemeIndex, setPreviewThemeIndex] = useState(0);
@@ -159,6 +162,7 @@ function Home() {
   const alive = useRef(true);
   const writes = useRef(Promise.resolve());
   const theme = themes[prefs.theme];
+  const themeDef = THEME_LIST.find((item) => item.name === prefs.theme) ?? THEME_LIST[0];
   const onDial = useMemo(
     () => favorites(apps, prefs.favorites),
     [apps, prefs.favorites],
@@ -579,91 +583,60 @@ function Home() {
                 A quiet home. Turn the dial. Find your focus.
               </Text>
               <Text style={[styles.sectionTitle, { color: theme.muted }]}>APPEARANCE</Text>
-              <Text style={[styles.eyebrow, { color: theme.muted }]}>
-                WALLPAPER
-              </Text>
-              <WallpaperCard
-                uri={
-                  prefs.customWallpaper
-                    ? wallpaperUri(prefs.customWallpaper)
-                    : null
-                }
-                busy={wallpaperBusy}
-                disabled={wallpaperBusy || !ready}
-                onPress={() => {
-                  void chooseWallpaper();
-                }}
-                backgroundColor={theme.panel}
-                accentColor={theme.accent}
-              />
-              {prefs.customWallpaper && (
-                <SettingButton
-                  label="Use theme wallpaper"
-                  onPress={() => change("customWallpaper", null)}
-                  disabled={wallpaperBusy}
-                  backgroundColor={theme.panel}
-                  accentColor={theme.accent}
-                />
-              )}
-              <Text
-                style={{
-                  color: theme.muted,
-                  fontSize: 13,
-                  lineHeight: 20,
-                  marginBottom: 24,
-                }}
-              >
-                {prefs.customWallpaper
-                  ? "Your photo · theme colours stay active."
-                  : "Theme wallpaper. Choose a photo to make it yours."}
-              </Text>
-              <View style={styles.themeHeaderRow}>
-                <Text
-                  style={[
-                    styles.eyebrow,
-                    { color: theme.muted, marginBottom: 0 },
-                  ]}
-                >
-                  THEME
-                </Text>
-                <Text
-                  style={{
-                    color: theme.fg,
-                    fontSize: 13,
-                    letterSpacing: 0.4,
-                  }}
-                >
-                  {prefs.theme}
-                </Text>
-              </View>
-              <SettingButton
-                label="Turn dial to choose theme"
-                onPress={startThemeDial}
-                backgroundColor={theme.panel}
-                accentColor={theme.accent}
-              />
-              <Text style={[styles.note, { color: theme.muted }]}>
-                Turn the dial to preview all 27 themes. Press done to keep the
-                theme under the notch.
-              </Text>
-              <Text style={[styles.eyebrow, { color: theme.muted }]}>DIAL</Text>
-              {layouts.map((layout, index) => (
+              <View style={[styles.appearanceCard, { backgroundColor: theme.panel, borderColor: theme.muted2 }]}>
                 <Pressable
-                  key={layout.name}
-                  accessibilityRole="radio"
-                  accessibilityState={{ checked: prefs.layout === index }}
-                  onPress={() => change("layout", index)}
-                  style={styles.setting}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Theme ${prefs.theme}`}
+                  onPress={() => setExpandedAppearance((value) => value === "theme" ? null : "theme")}
+                  style={styles.appearanceCardHeader}
                 >
-                  <Text
-                    style={{
-                      color: prefs.layout === index ? theme.accent : theme.fg,
-                    }}
-                  >
-                    {layout.name}
-                  </Text>
+                  <View>
+                    <Text style={[styles.cardLabel, { color: theme.muted }]}>Theme</Text>
+                    <Text style={[styles.cardValue, { color: theme.fg }]}>{prefs.theme}</Text>
+                    <Text style={[styles.cardMeta, { color: theme.muted }]}>{themeDef.group} · {theme.light ? "light" : "dark"}</Text>
+                  </View>
+                  <Text style={[styles.cardChevron, { color: theme.accent }]}>{expandedAppearance === "theme" ? "−" : "＋"}</Text>
                 </Pressable>
-              ))}
+                <View style={[styles.themeMiniPreview, { backgroundColor: theme.bg }]}>
+                  <Text style={[styles.themeMiniClock, { color: theme.fg }]}>10:04</Text>
+                  <Text style={[styles.themeMiniDate, { color: theme.muted2 }]}>sun 18</Text>
+                  <View style={styles.themeMiniDial}>
+                    <Text style={[styles.themeMiniApp, { color: theme.accent }]}>Gmail</Text>
+                    <View style={[styles.themeMiniNotch, { backgroundColor: theme.accent }]} />
+                  </View>
+                </View>
+                {expandedAppearance === "theme" && (
+                  <View style={styles.appearanceCardExpanded}>
+                    <SettingButton label="Choose theme with dial" onPress={startThemeDial} backgroundColor={theme.bg} accentColor={theme.accent} />
+                    <WallpaperCard uri={prefs.customWallpaper ? wallpaperUri(prefs.customWallpaper) : null} busy={wallpaperBusy} disabled={wallpaperBusy || !ready} onPress={() => void chooseWallpaper()} backgroundColor={theme.bg} accentColor={theme.accent} />
+                    {prefs.customWallpaper && <SettingButton label="Use theme wallpaper" onPress={() => change("customWallpaper", null)} disabled={wallpaperBusy} backgroundColor={theme.bg} accentColor={theme.accent} />}
+                  </View>
+                )}
+              </View>
+              <View style={[styles.appearanceCard, { backgroundColor: theme.panel, borderColor: theme.muted2 }]}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Dial layout ${layouts[prefs.layout].name}`}
+                  onPress={() => setExpandedAppearance((value) => value === "dial" ? null : "dial")}
+                  style={styles.appearanceCardHeader}
+                >
+                  <View>
+                    <Text style={[styles.cardLabel, { color: theme.muted }]}>Dial layout</Text>
+                    <Text style={[styles.cardValue, { color: theme.fg }]}>{layouts[prefs.layout].name}</Text>
+                  </View>
+                  <Text style={[styles.cardChevron, { color: theme.accent }]}>{expandedAppearance === "dial" ? "−" : "＋"}</Text>
+                </Pressable>
+                <View style={[styles.dialMiniPreview, { backgroundColor: theme.bg }]}>
+                  <Text style={[styles.dialMiniLabel, { color: theme.muted }]}>Chrome</Text>
+                  <Text style={[styles.dialMiniLabel, { color: theme.fg }]}>Clock</Text>
+                  <Text style={[styles.dialMiniSelected, { color: theme.accent }]}>Gmail</Text>
+                  <Text style={[styles.dialMiniLabel, { color: theme.muted }]}>Files</Text>
+                  <View style={[styles.dialMiniTrack, { borderColor: theme.muted2 }]} />
+                  <View style={[styles.dialMiniDot, { backgroundColor: theme.accent }]} />
+                </View>
+                {expandedAppearance === "dial" && <View style={styles.appearanceCardExpanded}>{layouts.map((layout, index) => <Pressable key={layout.name} accessibilityRole="radio" accessibilityState={{ checked: prefs.layout === index }} onPress={() => change("layout", index)} style={styles.setting}><Text style={{ color: prefs.layout === index ? theme.accent : theme.fg }}>{prefs.layout === index ? "● " : "○ "}{layout.name}</Text></Pressable>)}</View>}
+              </View>
+              <Text style={[styles.sectionTitle, { color: theme.muted }]}>DIAL</Text>
               {(["left", "dots", "sound", "haptics"] as const).map(
                 (key) => (
                   <View style={styles.setting} key={key}>
@@ -810,6 +783,78 @@ const styles = StyleSheet.create({
     letterSpacing: 3,
     marginTop: 18,
     marginBottom: 16,
+  },
+  appearanceCard: {
+    borderWidth: 1,
+    borderRadius: 18,
+    marginBottom: 16,
+    overflow: "hidden",
+  },
+  appearanceCardHeader: {
+    minHeight: 76,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  appearanceCardExpanded: {
+    paddingHorizontal: 16,
+    paddingBottom: 4,
+  },
+  cardLabel: { fontSize: 11, letterSpacing: 2 },
+  cardValue: { fontSize: 18, marginTop: 5 },
+  cardMeta: { fontSize: 11, marginTop: 5, letterSpacing: 0.4 },
+  cardChevron: { fontSize: 22, fontWeight: "300" },
+  themeMiniPreview: {
+    minHeight: 152,
+    marginHorizontal: 16,
+    marginBottom: 16,
+    borderRadius: 12,
+    overflow: "hidden",
+    padding: 16,
+  },
+  themeMiniClock: { fontSize: 30, fontWeight: "300" },
+  themeMiniDate: { fontSize: 11, marginTop: 6 },
+  themeMiniDial: {
+    position: "absolute",
+    right: 20,
+    top: 34,
+    bottom: 24,
+    justifyContent: "center",
+    alignItems: "flex-end",
+    gap: 8,
+  },
+  themeMiniApp: { fontSize: 14 },
+  themeMiniNotch: { width: 9, height: 9, borderRadius: 9 },
+  dialMiniPreview: {
+    minHeight: 152,
+    marginHorizontal: 16,
+    marginBottom: 16,
+    borderRadius: 12,
+    overflow: "hidden",
+    alignItems: "flex-end",
+    justifyContent: "center",
+    paddingRight: 42,
+    gap: 7,
+  },
+  dialMiniLabel: { fontSize: 14 },
+  dialMiniSelected: { fontSize: 15, fontWeight: "600" },
+  dialMiniTrack: {
+    position: "absolute",
+    right: 19,
+    top: 22,
+    bottom: 22,
+    width: 1,
+    borderLeftWidth: 1,
+  },
+  dialMiniDot: {
+    position: "absolute",
+    right: 15,
+    top: "50%",
+    width: 9,
+    height: 9,
+    borderRadius: 9,
   },
   wallpaperCard: {
     minHeight: 180,
