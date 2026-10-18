@@ -5,11 +5,17 @@ import { clockTime, clockDate } from "../src/home/clock.ts";
 import { themes } from "../src/themes/catalog.ts";
 
 test("clock uses 24-hour local time including midnight, noon and afternoon", () => {
-  assert.equal(clockTime(new Date(2026, 9, 18, 0, 0)), "00:00");
-  assert.equal(clockTime(new Date(2026, 9, 18, 9, 5)), "09:05");
-  assert.equal(clockTime(new Date(2026, 9, 18, 12, 0)), "12:00");
-  assert.equal(clockTime(new Date(2026, 9, 18, 23, 59)), "23:59");
+  assert.equal(clockTime(new Date(2026, 9, 18, 0, 0), true), "00:00");
+  assert.equal(clockTime(new Date(2026, 9, 18, 9, 5), true), "09:05");
+  assert.equal(clockTime(new Date(2026, 9, 18, 12, 0), true), "12:00");
+  assert.equal(clockTime(new Date(2026, 9, 18, 23, 59), true), "23:59");
   assert.equal(clockDate(new Date(2026, 9, 18)), "sun 18 oct");
+});
+test("12-hour phone setting handles midnight, noon, morning and evening", () => {
+  assert.equal(clockTime(new Date(2026, 9, 18, 0, 0), false), "12:00");
+  assert.equal(clockTime(new Date(2026, 9, 18, 9, 5), false), "9:05");
+  assert.equal(clockTime(new Date(2026, 9, 18, 12, 0), false), "12:00");
+  assert.equal(clockTime(new Date(2026, 9, 18, 19, 5), false), "7:05");
 });
 test("all 27 reference themes provide complete palettes and correct wallpaper variants", () => {
   assert.equal(Object.keys(themes).length, 27);

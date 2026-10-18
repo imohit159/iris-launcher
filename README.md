@@ -67,7 +67,7 @@ cd android
 
 `plugins/withAndroidHome.js` registers MAIN/HOME/DEFAULT on MainActivity and preserves singleTask behavior across clean prebuilds. `react-native-launcher-kit` handles app discovery and launching. `modules/dial-feedback` is a local Expo module for low-latency Android dial clicks; Expo autolinking discovers it automatically.
 
-`pnpm check` runs TypeScript, ESLint and ten Node tests covering catalog behavior, reference geometry, hold rebasing, motion, 24-hour formatting and theme completeness. Native behavior, sound, haptics, gesture feel and default-home lifecycle require phone testing. Never infer those from unit tests.
+`pnpm check` runs TypeScript, ESLint and eleven Node tests covering catalog behavior, reference geometry, hold rebasing, motion, system clock formatting and theme completeness. Native behavior, sound, haptics, gesture feel and default-home lifecycle require phone testing. Never infer those from unit tests.
 
 Generated native projects, SDK paths, dependencies and signing credentials remain ignored. Development builds include network access for Metro; launcher features do not upload app data.
 
@@ -110,8 +110,10 @@ The local Detent port adds its five layouts, JetBrains Mono fonts, exact design-
 
 ## Themes and clock
 
-Hold empty space (or the clock) to open settings and choose from all 27 Detent themes. The original phone themes include tinted dot-hand artwork; wallpaper themes include the reference readability overlays. The clock always uses 24-hour local time, including `00:00` at midnight. Its time/date ink edges align on either side of the screen, with the reference line heights and spacing. Theme assets load locally, with no backend or extra dependency. See [provenance and implementation](docs/DETENT-REFERENCE.md).
+Hold empty space (or the clock) to open settings and choose from all 27 Detent themes. The original phone themes include tinted dot-hand artwork; wallpaper themes include the reference readability overlays. The clock follows the phone’s 12/24-hour setting: `7:05` in 12-hour mode or `19:05` in 24-hour mode. It refreshes after returning from Android Settings. Its time/date ink edges align on either side of the screen, with the reference line heights and spacing. Theme assets load locally, with no backend or extra dependency. See [provenance and implementation](docs/DETENT-REFERENCE.md).
 
-Theme/clock verification: ten tests, TypeScript, lint, Expo dependency compatibility, Android `assembleDebugOptimized`, and Android JavaScript/asset export pass. On vivo V2228, retro-82 wallpaper, catppuccin-latte light theme/status-bar contrast, and dusk tinted art were selected and visually checked; the original ember preference was restored. No GitHub release was created.
+Theme/clock verification: eleven tests, TypeScript, lint, Expo dependency compatibility, Android `assembleDebugOptimized`, and Android JavaScript/asset export pass. On vivo V2228, retro-82 wallpaper, catppuccin-latte light theme/status-bar contrast, and dusk tinted art were selected and visually checked; the original ember preference was restored. No GitHub release was created.
 
 After adding the theme canvas and clock, a guarded four-swipe development replay on the same vivo recorded 12.62% janky frames / 15 ms p95 (103 frames), passing the 15% guard. This remains a development measurement.
+
+System clock preference verified on vivo V2228: switching Android Settings to 12-hour showed `7:50`; switching to 24-hour showed `19:50` after returning to Iris. The original 12-hour phone setting was restored. The rebuilt development client includes SDK-compatible `expo-localization` for the native preference; no Iris-specific hour-cycle override is stored.

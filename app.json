@@ -28,6 +28,10 @@
     },
     "platforms": ["android"],
     "scheme": "iris",
-    "plugins": ["expo-dev-client", "./plugins/withAndroidHome.js"]
+    "plugins": [
+      "expo-dev-client",
+      "./plugins/withAndroidHome.js",
+      "expo-localization"
+    ]
   }
 }

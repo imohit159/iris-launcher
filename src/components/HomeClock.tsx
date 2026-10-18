@@ -8,6 +8,7 @@ import {
   type SkFont,
 } from "@shopify/react-native-skia";
 import type { Theme } from "../themes/catalog";
+import { useSystemClockFormat } from "../home/useSystemClockFormat";
 import { clockDate, clockTime } from "../home/clock";
 
 type Props = {
@@ -40,7 +41,8 @@ export function HomeClock({
     require("../../assets/fonts/jetbrains_mono_regular.ttf"),
     13,
   );
-  const time = clockTime(now),
+  const uses24hourClock = useSystemClockFormat();
+  const time = clockTime(now, uses24hourClock),
     date = clockDate(now);
   const picture = useMemo(() => {
     const recorder = Skia.PictureRecorder();
