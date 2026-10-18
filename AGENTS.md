@@ -9,3 +9,5 @@ Address the user as BOSS. This is a fresh Android launcher built with Expo and T
 - Verify with pnpm check, Expo dependency checks, and an Android debug build when tools are available. State device-verification limits.
 - Commit and push verified milestones to the configured remote without force-pushing.
 - Never commit dependencies, generated native build outputs, local SDK paths, credentials, or signing keys.
+
+- Before dial or reference-derived home UI changes, inspect the local `/home/imohit/Projects/detent` clone and read docs/DETENT-REFERENCE.md. Match its geometry and interactions; record the reference commit and retain third-party licenses.

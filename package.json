@@ -4,8 +4,10 @@
   "main": "index.ts",
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",
+    "@shopify/react-native-skia": "2.6.2",
     "expo": "~57.0.30",
     "expo-dev-client": "~57.0.20",
+    "expo-font": "~57.0.4",
     "expo-haptics": "~57.0.3",
     "expo-intent-launcher": "~57.0.1",
     "expo-status-bar": "~57.0.1",

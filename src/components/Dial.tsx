@@ -1,312 +1,397 @@
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
-import {
-  Gesture,
-  GestureDetector,
-  Pressable,
-} from "react-native-gesture-handler";
+import { Canvas, Picture, Skia, useFont } from "@shopify/react-native-skia";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   cancelAnimation,
   useAnimatedReaction,
-  useAnimatedStyle,
+  useDerivedValue,
+  useReducedMotion,
   useSharedValue,
-  withSpring,
-  type SharedValue,
 } from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
 import type { App } from "../launcher/catalog";
 import type { Theme } from "../preferences";
+import {
+  DESIGN,
+  displayName,
+  initial,
+  layouts,
+  geometry,
+  mod,
+  rowAt,
+  dragPosition,
+  scrubTarget,
+  zoneAt,
+} from "../dial/reference";
+import { withDialMotion, withPawl } from "../dial/motion";
+import { drawDial } from "../dial/draw";
 
-const STEP = 66;
-const ANGLE = 0.22;
-const WINDOW_BATCH = 4;
-const WINDOW_RADIUS = 8;
-const SPRING = {
-  damping: 27,
-  stiffness: 240,
-  mass: 0.8,
-  overshootClamping: true,
-};
 type Props = {
   apps: App[];
   theme: Theme;
   left: boolean;
+  layout?: number;
   onLaunch(app: App): void;
   onMenu(app: App): void;
-  onAlphabet(): void;
+  onSettings(): void;
   onTick(): void;
-  jump: number;
+  onScrubChange(value: boolean): void;
 };
-
-const DialItem = memo(function DialItem({
-  app,
-  index,
-  position,
-  size,
-  left,
-  theme,
-  selected,
-  onSelect,
-  onLaunch,
-  onMenu,
-  onAlphabet,
-}: {
-  app: App;
-  index: number;
-  position: SharedValue<number>;
-  size: { width: number; height: number };
-  left: boolean;
-  theme: Theme;
-  selected: boolean;
-  onSelect(index: number): void;
-  onLaunch(app: App): void;
-  onMenu(app: App): void;
-  onAlphabet(): void;
-}) {
-  const itemStyle = useAnimatedStyle(() => {
-    const distance = index - position.get();
-    // Offscreen rows keep a constant transform, avoiding native updates every frame.
-    if (Math.abs(distance) >= 5)
-      return {
-        opacity: 0,
-        transform: [
-          { translateX: -1000 },
-          { translateY: -1000 },
-          { rotate: "0rad" },
-        ],
-      };
-    const angle = distance * ANGLE;
-    const radius = size.width * 0.83;
-    const center = left ? -radius * 0.44 : size.width + radius * 0.44;
-    return {
-      opacity: Math.max(0, 1 - Math.abs(distance) / 5),
-      transform: [
-        {
-          translateX: center + (left ? 1 : -1) * Math.cos(angle) * radius - 110,
-        },
-        { translateY: size.height / 2 + Math.sin(angle) * radius - 24 },
-        { rotate: `${(left ? -1 : 1) * angle}rad` },
-      ],
-    };
-  });
-  const labelStyle = useAnimatedStyle(() => {
-    const emphasis = Math.max(0, 1 - Math.abs(index - position.get()));
-    return {
-      color: Math.round(position.get()) === index ? theme.accent : theme.fg,
-      transform: [{ scale: 1 + emphasis * 0.3 }],
-    };
-  });
-  return (
-    <Animated.View style={[styles.item, itemStyle]}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`${selected ? "Open" : "Select"} ${app.label}`}
-        accessibilityState={{ selected }}
-        onPress={() => (selected ? onLaunch(app) : onSelect(index))}
-        onLongPress={() => (selected ? onMenu(app) : onAlphabet())}
-        style={styles.target}
-      >
-        <Animated.Text
-          numberOfLines={1}
-          style={[
-            styles.label,
-            {
-              textAlign: left ? "left" : "right",
-              transformOrigin: left ? "left center" : "right center",
-            },
-            labelStyle,
-          ]}
-        >
-          {app.label.toLocaleLowerCase()}
-        </Animated.Text>
-      </Pressable>
-    </Animated.View>
-  );
-});
-
 export function Dial({
   apps,
   theme,
   left,
+  layout = 0,
   onLaunch,
   onMenu,
-  onAlphabet,
+  onSettings,
   onTick,
-  jump,
+  onScrubChange,
 }: Props) {
-  const position = useSharedValue(0);
-  const origin = useSharedValue(0);
+  const [size, setSize] = useState({ width: 412, height: 892 });
   const [selected, setSelected] = useState(0);
-  const [size, setSize] = useState({ width: 360, height: 450 });
-  const count = apps.length;
-  const select = useCallback(
-    (index: number) => {
-      position.set(withSpring(Math.max(0, Math.min(count - 1, index)), SPRING));
-    },
-    [count, position],
-  );
-  const selectionChanged = useCallback(
-    (next: number) => {
-      setSelected(next);
-      onTick();
-    },
-    [onTick],
-  );
-  useAnimatedReaction(
-    () => Math.max(0, Math.min(count - 1, Math.round(position.get()))),
-    (next, previous) => {
-      if (previous !== null && next !== previous && count > 0)
-        scheduleOnRN(selectionChanged, next);
-    },
-    [count, selectionChanged],
-  );
+  // Keep active native gestures stable when clock/search state rerenders Home.
+  const callbacks = useRef({
+    onLaunch,
+    onMenu,
+    onSettings,
+    onTick,
+    onScrubChange,
+  });
   useEffect(() => {
-    if (jump >= 0) select(jump);
-  }, [jump, select]);
-  const pan = useMemo(
-    () =>
-      Gesture.Pan()
-        .activeOffsetY([-8, 8])
-        .onStart(() => {
-          cancelAnimation(position);
-          origin.set(position.get());
-        })
-        .onUpdate((event) => {
-          position.set(
-            Math.max(
-              0,
-              Math.min(count - 1, origin.get() - event.translationY / STEP),
-            ),
-          );
-        })
-        .onEnd((event) => {
-          const projected = position.get() - (event.velocityY / STEP) * 0.18;
-          position.set(
-            withSpring(
-              Math.max(0, Math.min(count - 1, Math.round(projected))),
-              SPRING,
-            ),
-          );
-        })
-        .onFinalize((_, success) => {
-          if (!success)
-            position.set(withSpring(Math.round(position.get()), SPRING));
-        }),
-    [count, origin, position],
+    callbacks.current = { onLaunch, onMenu, onSettings, onTick, onScrubChange };
+  }, [onLaunch, onMenu, onSettings, onTick, onScrubChange]);
+  const notifyScrub = useCallback(
+    (value: boolean) => callbacks.current.onScrubChange(value),
+    [],
   );
-  const radius = size.width * 0.83;
-  const center = left ? -radius * 0.44 : size.width + radius * 0.44;
-  const windowCenter = Math.floor(selected / WINDOW_BATCH) * WINDOW_BATCH;
-  const start = Math.max(0, windowCenter - WINDOW_RADIUS);
+  const showSettings = useCallback(() => callbacks.current.onSettings(), []);
+
+  const regular = useFont(
+    require("../../assets/fonts/jetbrains_mono_regular.ttf"),
+    15,
+  );
+  const medium = useFont(
+    require("../../assets/fonts/jetbrains_mono_medium.ttf"),
+    15,
+  );
+  const large = useFont(
+    require("../../assets/fonts/jetbrains_mono_light.ttf"),
+    112,
+  );
+  const reducedMotion = useReducedMotion();
+  const position = useSharedValue(0),
+    origin = useSharedValue(0),
+    anchor = useSharedValue(0);
+  const translation = useSharedValue(0),
+    moved = useSharedValue(false),
+    consumed = useSharedValue(false);
+  const scrub = useSharedValue(false),
+    base = useSharedValue(0),
+    kick = useSharedValue(0);
+  const samples = useSharedValue<{ time: number; position: number }[]>([]);
+  const lastTick = useSharedValue(0);
+  const names = useMemo(() => apps.map((app) => app.label), [apps]);
+  const letters = useMemo(
+    () => [...new Set(apps.map((app) => initial(app.label)))],
+    [apps],
+  );
+  const labels = useMemo(
+    () =>
+      regular
+        ? apps.map((app) => ({
+            text: displayName(app.label),
+            glyphs: regular.getGlyphIDs(displayName(app.label)),
+          }))
+        : [],
+    [apps, regular],
+  );
+  const alphabet = useMemo(
+    () =>
+      regular
+        ? letters.map((text) => ({ text, glyphs: regular.getGlyphIDs(text) }))
+        : [],
+    [letters, regular],
+  );
+  const empty = useMemo(() => {
+    const recorder = Skia.PictureRecorder();
+    recorder.beginRecording();
+    const picture = recorder.finishRecordingAsPicture();
+    recorder.dispose();
+    return picture;
+  }, []);
+  const g = geometry(
+    size.width,
+    size.height,
+    (layouts[layout] ?? layouts[0]).radius,
+  );
+  const radius = (layouts[layout] ?? layouts[0]).radius;
+  const animate = useCallback(
+    (target: number) =>
+      position.set(reducedMotion ? target : withDialMotion(target)),
+    [position, reducedMotion],
+  );
+  const changed = useCallback((index: number, sound: boolean) => {
+    setSelected(index);
+    if (sound) callbacks.current.onTick();
+  }, []);
+  useAnimatedReaction(
+    () => ({ index: Math.round(position.get()), scrub: scrub.get() }),
+    (next, previous) => {
+      if (!previous || next.scrub !== previous.scrub) return;
+      if (next.index !== previous.index) {
+        const now = gestureTime(),
+          sound = now - lastTick.get() >= 26;
+        if (sound) lastTick.set(now);
+        if (!reducedMotion) {
+          kick.set(1);
+          kick.set(withPawl());
+        }
+        scheduleOnRN(changed, mod(next.index, apps.length), sound);
+      }
+    },
+    [apps.length, changed, reducedMotion],
+  );
+  const picture = useDerivedValue(() =>
+    regular && medium && large
+      ? drawDial(
+          size.width,
+          size.height,
+          position.get(),
+          layout,
+          left,
+          theme,
+          scrub.get() ? alphabet : labels,
+          regular,
+          medium,
+          large,
+          scrub.get(),
+          kick.get(),
+        )
+      : empty,
+  );
+  const launchAt = useCallback(
+    (index: number) => {
+      if (apps.length)
+        callbacks.current.onLaunch(apps[mod(index, apps.length)]);
+    },
+    [apps],
+  );
+  const menuAt = useCallback(
+    (index: number) => {
+      if (apps.length) callbacks.current.onMenu(apps[mod(index, apps.length)]);
+    },
+    [apps],
+  );
+  // Gesture builders register these callbacks; they do not invoke them during render.
+  /* eslint-disable react-hooks/refs */
+  const gesture = useMemo(() => {
+    const finish = () => {
+      "worklet";
+      if (consumed.get()) return;
+      if (scrub.get()) {
+        const letter = letters[mod(Math.round(position.get()), letters.length)];
+        const index = names.findIndex(
+          (name) => initialWorklet(name) === letter,
+        );
+        const saved = base.get();
+        // Restore the app coordinate system before settling; never reuse the letter drag origin.
+        scrub.set(false);
+        position.set(saved);
+        const target =
+          index < 0 ? saved : scrubTarget(saved, index, names.length);
+        position.set(reducedMotion ? target : withDialMotion(target));
+        scheduleOnRN(notifyScrub, false);
+        scheduleOnRN(changed, mod(Math.round(saved), names.length), false);
+      } else if (moved.get()) {
+        const recent = samples.get(),
+          first = recent[0],
+          now = gestureTime();
+        const velocity = first
+          ? Math.max(
+              -0.06,
+              Math.min(
+                0.06,
+                (position.get() - first.position) /
+                  Math.max(16, now - first.time),
+              ),
+            )
+          : 0;
+        position.set(
+          reducedMotion
+            ? Math.round(position.get())
+            : withDialMotion(Math.round(position.get()), velocity),
+        );
+      } else {
+        const target = Math.round(position.get());
+        position.set(reducedMotion ? target : withDialMotion(target));
+      }
+      consumed.set(true);
+    };
+    const pan = Gesture.Pan()
+      .minDistance(0)
+      .onBegin(() => {
+        cancelAnimation(position);
+        origin.set(position.get());
+        anchor.set(0);
+        translation.set(0);
+        moved.set(false);
+        consumed.set(false);
+        samples.set([{ time: gestureTime(), position: position.get() }]);
+      })
+      .onUpdate((event) => {
+        translation.set(event.translationY);
+        if (
+          Math.abs(event.translationY) > DESIGN.slop * g.scale ||
+          Math.abs(event.translationX) > DESIGN.slop * g.scale
+        )
+          moved.set(true);
+        if (consumed.get() || !names.length) return;
+        position.set(
+          dragPosition(origin.get(), event.translationY, anchor.get(), g.scale),
+        );
+        const time = gestureTime();
+        samples.set([
+          ...samples.get().filter((sample) => time - sample.time <= 90),
+          { time, position: position.get() },
+        ]);
+      })
+      .onEnd(finish)
+      .onFinalize((_, success) => {
+        if (!success && (moved.get() || scrub.get())) finish();
+      });
+    const hold = Gesture.LongPress()
+      .minDuration(DESIGN.holdMs)
+      .maxDistance(DESIGN.slop * g.scale)
+      .onStart((event) => {
+        if (moved.get()) return;
+        if (!names.length) {
+          consumed.set(true);
+          scheduleOnRN(showSettings);
+          return;
+        }
+        const zone = zoneAt(
+          event.x / g.scale,
+          event.y / g.scale,
+          position.get(),
+          radius,
+          g.cy,
+          size.height / g.scale,
+          left,
+        );
+        if (zone === "dial") {
+          const saved = Math.round(position.get()),
+            letter = initialWorklet(names[mod(saved, names.length)]);
+          const index = letters.indexOf(letter);
+          base.set(saved);
+          scrub.set(true);
+          position.set(index);
+          origin.set(index);
+          // Pan translation is cumulative from touch-down: rebase it at the hold transition.
+          anchor.set(translation.get());
+          samples.set([]);
+          scheduleOnRN(notifyScrub, true);
+        } else {
+          consumed.set(true);
+          position.set(Math.round(position.get()));
+          if (zone === "selected")
+            scheduleOnRN(menuAt, Math.round(position.get()));
+          else scheduleOnRN(showSettings);
+        }
+      });
+    const tap = Gesture.Tap()
+      .maxDuration(450)
+      .maxDistance(DESIGN.slop * g.scale)
+      .onEnd((event, success) => {
+        if (!success || moved.get() || scrub.get() || !names.length) return;
+        const row = rowAt(
+          event.x / g.scale,
+          event.y / g.scale,
+          position.get(),
+          radius,
+          g.cy,
+          size.height / g.scale,
+          left,
+        );
+        if (row === null) return;
+        if (row === Math.round(position.get())) scheduleOnRN(launchAt, row);
+        else position.set(reducedMotion ? row : withDialMotion(row));
+      });
+    return Gesture.Simultaneous(pan, hold, tap);
+  }, [
+    names,
+    letters,
+    g.scale,
+    g.cy,
+    radius,
+    size.height,
+    left,
+    reducedMotion,
+    position,
+    origin,
+    anchor,
+    translation,
+    moved,
+    consumed,
+    scrub,
+    base,
+    samples,
+    notifyScrub,
+    changed,
+    menuAt,
+    showSettings,
+    launchAt,
+  ]);
+  /* eslint-enable react-hooks/refs */
   return (
-    <View
-      style={styles.surface}
-      onLayout={(event) => setSize(event.nativeEvent.layout)}
-    >
-      <View
-        pointerEvents="none"
-        style={[
-          styles.rim,
-          {
-            width: radius * 2,
-            height: radius * 2,
-            borderRadius: radius,
-            borderColor: theme.muted,
-            left: center - radius,
-            top: size.height / 2 - radius,
-          },
+    <GestureDetector gesture={gesture}>
+      <Animated.View
+        style={StyleSheet.absoluteFill}
+        onLayout={(event) => setSize(event.nativeEvent.layout)}
+        accessible
+        accessibilityRole="adjustable"
+        accessibilityLabel="App dial"
+        accessibilityValue={{ text: apps[selected]?.label ?? "Empty dial" }}
+        accessibilityActions={[
+          { name: "increment" },
+          { name: "decrement" },
+          { name: "activate" },
+          { name: "longpress" },
         ]}
-      />
-      <View
-        pointerEvents="none"
-        style={[
-          styles.notch,
-          {
-            backgroundColor: theme.accent,
-            top: size.height / 2,
-            [left ? "left" : "right"]: 0,
-          },
-        ]}
-      />
-      <GestureDetector gesture={pan}>
-        <Animated.View style={styles.gestureSurface}>
-          {apps
-            .slice(start, windowCenter + WINDOW_RADIUS + 1)
-            .map((app, offset) => (
-              <DialItem
-                key={app.packageName}
-                app={app}
-                index={start + offset}
-                position={position}
-                size={size}
-                left={left}
-                theme={theme}
-                selected={selected === start + offset}
-                onSelect={select}
-                onLaunch={onLaunch}
-                onMenu={onMenu}
-                onAlphabet={onAlphabet}
-              />
-            ))}
-        </Animated.View>
-      </GestureDetector>
-      {!count && (
-        <Text style={[styles.empty, { color: theme.muted }]}>
-          Your dial is empty. Add apps from search.
-        </Text>
-      )}
-      <View style={styles.controls}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Previous app"
-          disabled={selected === 0}
-          onPress={() => select(selected - 1)}
-          style={styles.control}
-        >
-          <Text style={{ color: theme.accent }}>↑</Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Jump to letter"
-          onPress={onAlphabet}
-          style={styles.control}
-        >
-          <Text style={{ color: theme.muted }}>A — Z</Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Next app"
-          disabled={selected >= count - 1}
-          onPress={() => select(selected + 1)}
-          style={styles.control}
-        >
-          <Text style={{ color: theme.accent }}>↓</Text>
-        </Pressable>
-      </View>
-    </View>
+        onAccessibilityAction={(event) => {
+          const action = event.nativeEvent.actionName;
+          if (action === "activate") launchAt(Math.round(position.get()));
+          else if (action === "longpress") menuAt(Math.round(position.get()));
+          else
+            animate(
+              Math.round(position.get()) + (action === "increment" ? 1 : -1),
+            );
+        }}
+      >
+        <Canvas style={StyleSheet.absoluteFill} pointerEvents="none">
+          <Picture picture={picture} />
+        </Canvas>
+        {!apps.length && (
+          <View pointerEvents="none" style={styles.empty}>
+            <Text style={{ color: theme.muted }}>
+              Your dial is empty. Add apps from search.
+            </Text>
+          </View>
+        )}
+      </Animated.View>
+    </GestureDetector>
   );
 }
+function initialWorklet(name: string) {
+  "worklet";
+  return String.fromCodePoint(name.codePointAt(0) ?? 63);
+}
 const styles = StyleSheet.create({
-  surface: { flex: 1, minHeight: 280, overflow: "hidden" },
-  gestureSurface: { flex: 1 },
-  rim: { position: "absolute", borderWidth: 1, opacity: 0.18 },
-  notch: { position: "absolute", width: 24, height: 2 },
-  item: { position: "absolute", width: 220 },
-  target: { minHeight: 48, justifyContent: "center", paddingHorizontal: 16 },
-  label: { fontSize: 18, fontWeight: "500" },
-  empty: { position: "absolute", top: 24, marginHorizontal: 28 },
-  controls: {
-    position: "absolute",
-    bottom: 0,
-    left: 20,
-    right: 20,
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  control: {
-    minHeight: 48,
-    minWidth: 48,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  empty: { position: "absolute", top: "50%", marginHorizontal: 28 },
 });
+
+function gestureTime() {
+  "worklet";
+  return performance.now();
+}

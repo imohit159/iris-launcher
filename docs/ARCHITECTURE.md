@@ -30,15 +30,19 @@ Show actionable catalog, persistence, launch and permission errors. Keep notific
 
 ## Performance and scale
 
-No backend scaling requirement. Use debugOptimized development builds to avoid native debug overhead; enable Reanimated’s Android synchronous UI-prop fast path and use Gesture Handler press targets for transformed rows. Run dial gestures, geometry and spring animation on the UI thread with Gesture Handler and Reanimated; render a batched window of nearby entries, virtualize search results, keep animation/gesture work bounded, cache the installed catalog until foreground/package updates. Test scrolling and app catalog behavior on a real phone; simulator mocks cannot prove native correctness.
+No backend scaling requirement. Use debugOptimized development builds to avoid native debug overhead. Run dial gestures, reference physics and Skia drawing on the UI thread with Gesture Handler and Reanimated; record only nearby labels and markers, virtualize search results, keep animation/gesture work bounded, cache the installed catalog until foreground/package updates. Test scrolling and app catalog behavior on a real phone; simulator mocks cannot prove native correctness.
 
 ## Phases
 
 1. Fresh Expo scaffold and reproducible native HOME configuration.
 2. Dial, search, favorites, alphabet navigation, themes, sound/haptics and setup.
-3. Device verification, then complete parity: notification dots, dynamic app shortcuts, five dial shapes, wallpaper picker/lock-screen integration, keyboard navigation and motion polish.
+3. Device verification, then complete parity: notification dots, dynamic app shortcuts, wallpaper picker/lock-screen integration, keyboard navigation and motion polish.
 4. BOSS-directed additions.
 
 ## Verification
 
 Use pnpm check, expo install --check, expo-doctor, clean Android prebuild and the generated Gradle wrapper. Record actual results in README; native behavior requires a connected Android phone.
+
+## Reference dial
+
+See [local Detent port](DETENT-REFERENCE.md) for source provenance and gesture invariants. Skia is the native canvas renderer; Expo Font loads matching home search typography. Five layouts and inline letter scrubbing are implemented. Keep animation mathematics in src/dial and Android launching behind src/launcher.

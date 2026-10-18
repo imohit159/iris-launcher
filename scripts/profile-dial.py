@@ -24,7 +24,7 @@ try:
     ui = adb('shell', 'cat', capture)
 finally:
     adb('shell', 'rm', '-f', capture)
-if 'Next app' not in ui:
+if 'App dial' not in ui:
     raise SystemExit('Open the Iris dial before profiling; another screen would invalidate the result.')
 size = re.findall(r'(\d+)x(\d+)', adb('shell', 'wm', 'size'))[-1]
 width, height = map(int, size)

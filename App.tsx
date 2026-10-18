@@ -15,8 +15,13 @@ import {
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from "react-native";
-import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
+import {
+  SafeAreaProvider,
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import * as IntentLauncher from "expo-intent-launcher";
 import { Dial } from "./src/components/Dial";
@@ -30,7 +35,6 @@ import {
 import {
   favorites,
   iconUri,
-  letterIndex,
   search,
   type App as InstalledApp,
 } from "./src/launcher/catalog";
@@ -41,20 +45,29 @@ import {
   themes,
   type Preferences,
 } from "./src/preferences";
+import { useFonts } from "expo-font";
+import { DESIGN, layouts } from "./src/dial/reference";
+import notices from "./licenses/notices.json";
 import { tick } from "./src/feedback";
 
 function Home() {
+  const { width, height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const k = width / DESIGN.width;
+  const [fontsLoaded] = useFonts({
+    JetBrainsMono: require("./assets/fonts/jetbrains_mono_regular.ttf"),
+  });
+  const [scrubbing, setScrubbing] = useState(false);
   const [apps, setApps] = useState<InstalledApp[]>([]);
   const [prefs, setPrefs] = useState(defaults);
   const [ready, setReady] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [panel, setPanel] = useState<"search" | "settings" | "letters" | null>(
+  const [panel, setPanel] = useState<"search" | "settings" | "licenses" | null>(
     null,
   );
   const [query, setQuery] = useState("");
   const [now, setNow] = useState(new Date());
-  const [jump, setJump] = useState(-1);
   const alive = useRef(true);
   const writes = useRef(Promise.resolve());
   const theme = themes[prefs.theme];
@@ -130,7 +143,6 @@ function Home() {
   const change = <K extends keyof Preferences>(key: K, value: Preferences[K]) =>
     setPrefs((previous) => ({ ...previous, [key]: value }));
   const favorite = (id: string) => {
-    setJump(-1);
     setPrefs((previous) => ({
       ...previous,
       favorites: previous.favorites.includes(id)
@@ -177,9 +189,37 @@ function Home() {
     </Pressable>
   );
   return (
-    <SafeAreaView style={[styles.screen, { backgroundColor: theme.bg }]}>
+    <View style={[styles.screen, { backgroundColor: theme.bg }]}>
       <StatusBar style={prefs.theme === "paper" ? "dark" : "light"} />
-      <View style={styles.header}>
+      {loading || !ready ? (
+        <View style={styles.center}>
+          <ActivityIndicator color={theme.accent} />
+        </View>
+      ) : error ? (
+        <View style={styles.center}>
+          <Text style={{ color: theme.fg }}>{error}</Text>
+          {button("Try again", () => {
+            setLoading(true);
+            void refresh();
+          })}
+        </View>
+      ) : (
+        <Dial
+          key={onDial.map((app) => app.packageName).join("|")}
+          apps={onDial}
+          theme={theme}
+          left={prefs.left}
+          onLaunch={(app) => {
+            void open(app);
+          }}
+          onMenu={menu}
+          layout={prefs.layout}
+          onSettings={() => setPanel("settings")}
+          onScrubChange={setScrubbing}
+          onTick={() => tick(prefs.sound, prefs.haptics)}
+        />
+      )}
+      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <Text style={[styles.brand, { color: theme.accent }]}>
           iris <Text style={{ color: theme.muted }}> / home</Text>
         </Text>
@@ -203,7 +243,8 @@ function Home() {
         onLongPress={() => setPanel("settings")}
         accessibilityRole="button"
         accessibilityLabel="Open clock; hold for settings"
-        style={styles.clockBlock}
+        style={[styles.clockBlock, { opacity: scrubbing ? 0 : 1 }]}
+        pointerEvents={scrubbing ? "none" : "auto"}
       >
         <Text style={[styles.clock, { color: theme.fg }]}>
           {now.toLocaleTimeString([], {
@@ -222,42 +263,61 @@ function Home() {
             .toLocaleLowerCase()}
         </Text>
       </Pressable>
-      {loading || !ready ? (
-        <View style={styles.center}>
-          <ActivityIndicator color={theme.accent} />
-        </View>
-      ) : error ? (
-        <View style={styles.center}>
-          <Text style={{ color: theme.fg }}>{error}</Text>
-          {button("Try again", () => {
-            setLoading(true);
-            void refresh();
-          })}
-        </View>
-      ) : (
-        <Dial
-          key={onDial.map((app) => app.packageName).join("|")}
-          apps={onDial}
-          theme={theme}
-          left={prefs.left}
-          jump={jump}
-          onLaunch={(app) => {
-            void open(app);
+      {!scrubbing && (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Search apps"
+          onPress={() => {
+            setQuery("");
+            setPanel("search");
           }}
-          onMenu={menu}
-          onAlphabet={() => setPanel("letters")}
-          onTick={() => tick(prefs.sound, prefs.haptics)}
-        />
+          style={[
+            styles.searchPill,
+            {
+              top: Math.min(height - 96 * k, height - insets.bottom - 56 * k),
+              [prefs.left ? "right" : "left"]: 24 * k,
+              height: 44 * k,
+              paddingLeft: 14 * k,
+              paddingRight: 18 * k,
+              gap: 10 * k,
+              borderColor: `${theme.fg}38`,
+              backgroundColor: `${theme.bg}8c`,
+            },
+          ]}
+        >
+          <View style={{ width: 14 * k, height: 14 * k }}>
+            <View
+              style={{
+                width: 9 * k,
+                height: 9 * k,
+                borderRadius: 9 * k,
+                borderWidth: 1.3 * k,
+                borderColor: theme.fg,
+              }}
+            />
+            <View
+              style={{
+                position: "absolute",
+                width: 6 * k,
+                height: 1.3 * k,
+                left: 8 * k,
+                top: 10 * k,
+                backgroundColor: theme.fg,
+                transform: [{ rotate: "45deg" }],
+              }}
+            />
+          </View>
+          <Text
+            style={{
+              color: theme.fg,
+              fontSize: 13 * k,
+              fontFamily: fontsLoaded ? "JetBrainsMono" : "monospace",
+            }}
+          >
+            search
+          </Text>
+        </Pressable>
       )}
-      <View style={styles.footer}>
-        <Text style={[styles.eyebrow, { color: theme.muted }]}>
-          A LITTLE LESS NOISE.
-        </Text>
-        {button("search apps  ↗", () => {
-          setQuery("");
-          setPanel("search");
-        })}
-      </View>
       <Modal
         visible={panel !== null}
         animationType="slide"
@@ -268,8 +328,8 @@ function Home() {
             <Text style={[styles.title, { color: theme.fg }]}>
               {panel === "search"
                 ? "your apps"
-                : panel === "letters"
-                  ? "jump to a letter"
+                : panel === "licenses"
+                  ? "licenses"
                   : "make it yours"}
             </Text>
             <Pressable
@@ -345,36 +405,26 @@ function Home() {
                 )}
               />
             </>
-          ) : panel === "letters" ? (
-            <ScrollView contentContainerStyle={styles.letters}>
-              {"ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").map((letter) => {
-                const index = letterIndex(onDial, letter);
-                return (
-                  <Pressable
-                    key={letter}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Jump to ${letter}`}
-                    disabled={index < 0}
-                    onPress={() => {
-                      tick(prefs.sound, prefs.haptics, true);
-                      setJump(-1);
-                      setPanel(null);
-                      setTimeout(() => setJump(index), 0);
+          ) : panel === "licenses" ? (
+            <ScrollView contentContainerStyle={styles.settings}>
+              {Object.entries(notices).map(([name, text]) => (
+                <View key={name}>
+                  <Text style={[styles.title, { color: theme.accent }]}>
+                    {name}
+                  </Text>
+                  <Text
+                    selectable
+                    style={{
+                      color: theme.fg,
+                      fontSize: 12,
+                      lineHeight: 19,
+                      marginVertical: 16,
                     }}
-                    style={[
-                      styles.letter,
-                      {
-                        backgroundColor: theme.panel,
-                        opacity: index < 0 ? 0.25 : 1,
-                      },
-                    ]}
                   >
-                    <Text style={{ color: theme.accent, fontSize: 24 }}>
-                      {letter}
-                    </Text>
-                  </Pressable>
-                );
-              })}
+                    {text}
+                  </Text>
+                </View>
+              ))}
             </ScrollView>
           ) : (
             <ScrollView contentContainerStyle={styles.settings}>
@@ -406,6 +456,24 @@ function Home() {
                   ),
                 )}
               </View>
+              <Text style={[styles.eyebrow, { color: theme.muted }]}>DIAL</Text>
+              {layouts.map((layout, index) => (
+                <Pressable
+                  key={layout.name}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: prefs.layout === index }}
+                  onPress={() => change("layout", index)}
+                  style={styles.setting}
+                >
+                  <Text
+                    style={{
+                      color: prefs.layout === index ? theme.accent : theme.fg,
+                    }}
+                  >
+                    {layout.name}
+                  </Text>
+                </Pressable>
+              ))}
               {(["left", "sound", "haptics"] as const).map((key) => (
                 <View style={styles.setting} key={key}>
                   <Text style={{ color: theme.fg }}>
@@ -430,6 +498,7 @@ function Home() {
                 setQuery("");
                 setPanel("search");
               })}
+              {button("Open-source licenses", () => setPanel("licenses"))}
               {button("Set Iris as your home app", () => {
                 void setHome().catch(() =>
                   Alert.alert(
@@ -446,7 +515,7 @@ function Home() {
           )}
         </SafeAreaView>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 export default function App() {
@@ -482,8 +551,23 @@ const styles = StyleSheet.create({
     fontVariant: ["tabular-nums"],
   },
   date: { fontSize: 12, letterSpacing: 1 },
-  center: { flex: 1, justifyContent: "center", alignItems: "center", gap: 16 },
-  footer: { padding: 24 },
+  center: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 16,
+  },
+  searchPill: {
+    position: "absolute",
+    borderRadius: 999,
+    borderWidth: 1,
+    flexDirection: "row",
+    alignItems: "center",
+  },
   eyebrow: { fontSize: 10, letterSpacing: 3, marginBottom: 16 },
   button: { padding: 20, borderRadius: 16, marginBottom: 12 },
   title: { fontSize: 25, fontWeight: "300" },
@@ -516,13 +600,5 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     paddingVertical: 16,
-  },
-  letters: { padding: 24, flexDirection: "row", flexWrap: "wrap", gap: 12 },
-  letter: {
-    width: 58,
-    height: 58,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
   },
 });

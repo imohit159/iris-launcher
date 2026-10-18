@@ -10,15 +10,15 @@ Node 24.22.0 LTS, pnpm 12.9.1, Expo SDK 57, React Native 0.86.3 and JDK 17. Expo
 
 ## First baseline
 
-- Rotating app-name dial, drag/flick and spring snap; tap another app to select, selected app to launch.
+- Rotating app-name dial, drag/flick and reference inertial settling; tap another app to select, selected app to launch.
 - Search installed apps, add/remove favorites, and an intentionally empty dial until apps are chosen.
-- A–Z picker (also available by holding an unselected app); selected-app long press offers app info and removal.
-- Dusk, ember, signal and paper palettes; left/right dial placement.
+- Inline letter dial by holding an unselected app and sliding/releasing; selected-app long press offers app info and removal.
+- Dusk, ember, signal and paper palettes; left/right placement and five reference dial layouts.
 - Preloaded dial click and Expo Android haptics, with independent switches. Sound respects silent/vibrate mode and works when Android touch sounds are disabled.
 - Clock/date, clock shortcut, saved preferences, first-run settings and default-home selection.
 - Refresh on foreground, package installation and removal; user-visible load/save/launch errors.
 
-This is the first Expo baseline, not complete Detent parity. Still to implement: notification dots and permission flow, dynamic app shortcuts, five selectable dial shapes, theme wallpapers and custom photos, lock-screen wallpaper, slide-and-release alphabet gesture, hardware keyboard controls, empty-area settings gesture and launch animation polish. See [architecture and phases](docs/ARCHITECTURE.md).
+This is the first Expo baseline, not complete Detent parity. Still to implement: notification dots and permission flow, dynamic app shortcuts, theme wallpapers and custom photos, lock-screen wallpaper, hardware keyboard controls, launch animation polish. See [architecture and phases](docs/ARCHITECTURE.md).
 
 ## Develop on this machine
 
@@ -67,7 +67,7 @@ cd android
 
 `plugins/withAndroidHome.js` registers MAIN/HOME/DEFAULT on MainActivity and preserves singleTask behavior across clean prebuilds. `react-native-launcher-kit` handles app discovery and launching. `modules/dial-feedback` is a local Expo module for low-latency Android dial clicks; Expo autolinking discovers it automatically.
 
-`pnpm check` runs TypeScript, ESLint and four Node tests covering catalog normalization, search, favorites, alphabet lookup and icon URIs. Native behavior, sound, haptics, gesture feel and default-home lifecycle require phone testing. Never infer those from unit tests.
+`pnpm check` runs TypeScript, ESLint and eight Node tests covering catalog behavior, reference geometry, hold rebasing and motion. Native behavior, sound, haptics, gesture feel and default-home lifecycle require phone testing. Never infer those from unit tests.
 
 Generated native projects, SDK paths, dependencies and signing credentials remain ignored. Development builds include network access for Metro; launcher features do not upload app data.
 
@@ -85,7 +85,7 @@ Initial Maven downloads hit TLS errors and stalled requests. The successful buil
 
 ## Dial regression checks
 
-The dial uses UI-thread Gesture Handler/Reanimated motion, memoized gesture objects, stable batched rows, and Android's synchronous transform fast path. Animated press targets use Gesture Handler to keep touch detection accurate. The rationale follows [Reanimated's performance guide](https://docs.swmansion.com/react-native-reanimated/docs/guides/performance/).
+The dial uses UI-thread Gesture Handler/Reanimated motion and a Skia canvas matching the local Detent reference. Memoized gestures survive React rerenders; hold transitions rebase the drag origin. See [source mapping and licenses](docs/DETENT-REFERENCE.md). The rationale follows [Reanimated's performance guide](https://docs.swmansion.com/react-native-reanimated/docs/guides/performance/).
 
 The bundled click is original PCM audio, preloaded asynchronously by SoundPool. Iris's sound preference and ringer mode control playback; Android's touch-sounds preference does not. Regenerate the sample with `python scripts/generate-dial-click.py` if changing the sound.
 
@@ -99,3 +99,10 @@ python scripts/profile-dial.py --max-jank-percent 25
 ```
 
 The check rejects another screen or too few rendered frames; compare measurements on the same phone and build variant. The 25% threshold is a tolerant regression check for this phone, not a target for release performance. Native build verification also passed for `assembleDebugOptimized`; APK path: `android/app/build/outputs/apk/debugOptimized/app-debugOptimized.apk`.
+
+
+## Reference dial verification — October 18, 2026
+
+The local Detent port adds its five layouts, JetBrains Mono fonts, exact design-coordinate geometry, circular wrapping, velocity decay/settling, inline letter scrubbing, and compact home search. Holding empty space opens settings. A letter scrub commits the first app of the chosen letter, as in Detent.
+
+`pnpm check` passes all eight tests; Expo dependency compatibility passes; ARM64 `assembleDebugOptimized` succeeds. Installed on vivo V2228 through USB with Metro. The initial four-swipe replay measured 5.94% janky frames / 14 ms p95 (101 frames); this is a development-build sample, not release performance certification. On-device screenshots confirm the app/letter modes and compact search. Device interaction checks also pass for stationary letter-hold release, repeated hold stability, selected-app menu without accidental launch, and opening app search. All five layouts rendered on the phone; the original soft/double preference was restored. No GitHub release was created.

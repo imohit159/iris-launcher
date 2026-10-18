@@ -1,3 +1,4 @@
+import { layouts } from "./dial/reference";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 export const themes = {
   dusk: {
@@ -32,6 +33,7 @@ export const themes = {
 export type Theme = typeof themes.dusk;
 export type Preferences = {
   theme: keyof typeof themes;
+  layout: number;
   left: boolean;
   sound: boolean;
   haptics: boolean;
@@ -40,6 +42,7 @@ export type Preferences = {
 };
 export const defaults: Preferences = {
   theme: "dusk",
+  layout: 0,
   left: false,
   sound: true,
   haptics: true,
@@ -57,6 +60,13 @@ export function parsePreferences(raw: string | null): Preferences {
       typeof saved.theme === "string" && Object.hasOwn(themes, saved.theme)
         ? (saved.theme as Preferences["theme"])
         : "dusk",
+    layout:
+      typeof saved.layout === "number" &&
+      Number.isInteger(saved.layout) &&
+      saved.layout >= 0 &&
+      saved.layout < layouts.length
+        ? saved.layout
+        : 0,
     left: saved.left === true,
     sound: saved.sound !== false,
     haptics: saved.haptics !== false,
