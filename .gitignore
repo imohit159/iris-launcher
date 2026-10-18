@@ -39,3 +39,8 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Local Android tools
+.local-env.sh
+local.properties
+*.keystore
