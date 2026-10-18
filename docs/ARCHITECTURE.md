@@ -14,7 +14,7 @@ Expo Go cannot host launcher native APIs. Use Expo with a custom development cli
 
 ## Technology decisions and boundaries
 
-Official blank TypeScript Expo template, SDK 57 / React Native 0.86.3 (SDK 58 requires unavailable Android platform 37); pnpm; Expo-compatible dependencies selected by expo install. src/launcher owns Android catalog and launching; src/preferences owns validated persisted preferences; src/components owns dial interaction; App orchestrates presentation. plugins/withAndroidHome.js owns the HOME intent so clean prebuild preserves it. A small local Expo module owns Android system click feedback, which available launcher APIs do not provide.
+Official blank TypeScript Expo template, SDK 57 / React Native 0.86.3 (SDK 58 requires unavailable Android platform 37); pnpm; Expo-compatible dependencies selected by expo install. src/launcher owns Android catalog and launching; src/preferences owns validated persisted preferences; src/components owns dial interaction; App orchestrates presentation. plugins/withAndroidHome.js owns the HOME intent so clean prebuild preserves it. A small local Expo module owns preloaded SoundPool dial-click feedback, which available launcher APIs do not provide.
 
 ## Data flow and API strategy
 
@@ -30,7 +30,7 @@ Show actionable catalog, persistence, launch and permission errors. Keep notific
 
 ## Performance and scale
 
-No backend scaling requirement. Render only nearby dial entries, virtualize search results, keep animation/gesture work bounded, cache the installed catalog until foreground/package updates. Test scrolling and app catalog behavior on a real phone; simulator mocks cannot prove native correctness.
+No backend scaling requirement. Use debugOptimized development builds to avoid native debug overhead; enable Reanimated’s Android synchronous UI-prop fast path and use Gesture Handler press targets for transformed rows. Run dial gestures, geometry and spring animation on the UI thread with Gesture Handler and Reanimated; render a batched window of nearby entries, virtualize search results, keep animation/gesture work bounded, cache the installed catalog until foreground/package updates. Test scrolling and app catalog behavior on a real phone; simulator mocks cannot prove native correctness.
 
 ## Phases
 

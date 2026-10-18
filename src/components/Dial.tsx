@@ -1,14 +1,32 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { StyleSheet, Text, View } from "react-native";
 import {
-  Animated,
-  PanResponder,
+  Gesture,
+  GestureDetector,
   Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+} from "react-native-gesture-handler";
+import Animated, {
+  cancelAnimation,
+  useAnimatedReaction,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  type SharedValue,
+} from "react-native-reanimated";
+import { scheduleOnRN } from "react-native-worklets";
 import type { App } from "../launcher/catalog";
 import type { Theme } from "../preferences";
+
+const STEP = 66;
+const ANGLE = 0.22;
+const WINDOW_BATCH = 4;
+const WINDOW_RADIUS = 8;
+const SPRING = {
+  damping: 27,
+  stiffness: 240,
+  mass: 0.8,
+  overshootClamping: true,
+};
 type Props = {
   apps: App[];
   theme: Theme;
@@ -19,7 +37,93 @@ type Props = {
   onTick(): void;
   jump: number;
 };
-const STEP = 66;
+
+const DialItem = memo(function DialItem({
+  app,
+  index,
+  position,
+  size,
+  left,
+  theme,
+  selected,
+  onSelect,
+  onLaunch,
+  onMenu,
+  onAlphabet,
+}: {
+  app: App;
+  index: number;
+  position: SharedValue<number>;
+  size: { width: number; height: number };
+  left: boolean;
+  theme: Theme;
+  selected: boolean;
+  onSelect(index: number): void;
+  onLaunch(app: App): void;
+  onMenu(app: App): void;
+  onAlphabet(): void;
+}) {
+  const itemStyle = useAnimatedStyle(() => {
+    const distance = index - position.get();
+    // Offscreen rows keep a constant transform, avoiding native updates every frame.
+    if (Math.abs(distance) >= 5)
+      return {
+        opacity: 0,
+        transform: [
+          { translateX: -1000 },
+          { translateY: -1000 },
+          { rotate: "0rad" },
+        ],
+      };
+    const angle = distance * ANGLE;
+    const radius = size.width * 0.83;
+    const center = left ? -radius * 0.44 : size.width + radius * 0.44;
+    return {
+      opacity: Math.max(0, 1 - Math.abs(distance) / 5),
+      transform: [
+        {
+          translateX: center + (left ? 1 : -1) * Math.cos(angle) * radius - 110,
+        },
+        { translateY: size.height / 2 + Math.sin(angle) * radius - 24 },
+        { rotate: `${(left ? -1 : 1) * angle}rad` },
+      ],
+    };
+  });
+  const labelStyle = useAnimatedStyle(() => {
+    const emphasis = Math.max(0, 1 - Math.abs(index - position.get()));
+    return {
+      color: Math.round(position.get()) === index ? theme.accent : theme.fg,
+      transform: [{ scale: 1 + emphasis * 0.3 }],
+    };
+  });
+  return (
+    <Animated.View style={[styles.item, itemStyle]}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${selected ? "Open" : "Select"} ${app.label}`}
+        accessibilityState={{ selected }}
+        onPress={() => (selected ? onLaunch(app) : onSelect(index))}
+        onLongPress={() => (selected ? onMenu(app) : onAlphabet())}
+        style={styles.target}
+      >
+        <Animated.Text
+          numberOfLines={1}
+          style={[
+            styles.label,
+            {
+              textAlign: left ? "left" : "right",
+              transformOrigin: left ? "left center" : "right center",
+            },
+            labelStyle,
+          ]}
+        >
+          {app.label.toLocaleLowerCase()}
+        </Animated.Text>
+      </Pressable>
+    </Animated.View>
+  );
+});
+
 export function Dial({
   apps,
   theme,
@@ -30,69 +134,74 @@ export function Dial({
   onTick,
   jump,
 }: Props) {
-  const [position] = useState(() => new Animated.Value(0));
-  const offset = useRef(0);
-  const origin = useRef(0);
-  const selectedRef = useRef(0);
-  const tickRef = useRef(onTick);
-  useEffect(() => {
-    tickRef.current = onTick;
-  }, [onTick]);
+  const position = useSharedValue(0);
+  const origin = useSharedValue(0);
   const [selected, setSelected] = useState(0);
   const [size, setSize] = useState({ width: 360, height: 450 });
   const count = apps.length;
-  const clamp = useCallback(
-    (index: number) => Math.max(0, Math.min(count - 1, index)),
-    [count],
+  const select = useCallback(
+    (index: number) => {
+      position.set(withSpring(Math.max(0, Math.min(count - 1, index)), SPRING));
+    },
+    [count, position],
   );
-  const move = useCallback(
-    (index: number) =>
-      Animated.spring(position, {
-        toValue: clamp(index),
-        damping: 24,
-        stiffness: 190,
-        mass: 0.8,
-        useNativeDriver: true,
-      }).start(),
-    [clamp, position],
+  const selectionChanged = useCallback(
+    (next: number) => {
+      setSelected(next);
+      onTick();
+    },
+    [onTick],
+  );
+  useAnimatedReaction(
+    () => Math.max(0, Math.min(count - 1, Math.round(position.get()))),
+    (next, previous) => {
+      if (previous !== null && next !== previous && count > 0)
+        scheduleOnRN(selectionChanged, next);
+    },
+    [count, selectionChanged],
   );
   useEffect(() => {
-    const listener = position.addListener(({ value }) => {
-      offset.current = value;
-      const next = Math.max(0, Math.min(count - 1, Math.round(value)));
-      if (next !== selectedRef.current) {
-        selectedRef.current = next;
-        setSelected(next);
-        tickRef.current();
-      }
-    });
-    return () => position.removeListener(listener);
-  }, [position, count]);
-  useEffect(() => {
-    if (jump >= 0) move(jump);
-  }, [jump, move]);
-  // PanResponder stores these callbacks; it does not read their refs during render.
-  // eslint-disable-next-line react-hooks/refs
-  const gesture = PanResponder.create({
-    onMoveShouldSetPanResponder: (_, event) => Math.abs(event.dy) > 8,
-    onPanResponderGrant: () =>
-      position.stopAnimation((value) => {
-        origin.current = value;
-      }),
-    onPanResponderMove: (_, event) =>
-      position.setValue(clamp(origin.current - event.dy / STEP)),
-    onPanResponderRelease: (_, event) =>
-      move(Math.round(offset.current - event.vy * 2)),
-    onPanResponderTerminate: () => move(Math.round(offset.current)),
-  });
+    if (jump >= 0) select(jump);
+  }, [jump, select]);
+  const pan = useMemo(
+    () =>
+      Gesture.Pan()
+        .activeOffsetY([-8, 8])
+        .onStart(() => {
+          cancelAnimation(position);
+          origin.set(position.get());
+        })
+        .onUpdate((event) => {
+          position.set(
+            Math.max(
+              0,
+              Math.min(count - 1, origin.get() - event.translationY / STEP),
+            ),
+          );
+        })
+        .onEnd((event) => {
+          const projected = position.get() - (event.velocityY / STEP) * 0.18;
+          position.set(
+            withSpring(
+              Math.max(0, Math.min(count - 1, Math.round(projected))),
+              SPRING,
+            ),
+          );
+        })
+        .onFinalize((_, success) => {
+          if (!success)
+            position.set(withSpring(Math.round(position.get()), SPRING));
+        }),
+    [count, origin, position],
+  );
   const radius = size.width * 0.83;
-  const centerX = left ? -radius * 0.44 : size.width + radius * 0.44;
-  const current = apps[selected];
+  const center = left ? -radius * 0.44 : size.width + radius * 0.44;
+  const windowCenter = Math.floor(selected / WINDOW_BATCH) * WINDOW_BATCH;
+  const start = Math.max(0, windowCenter - WINDOW_RADIUS);
   return (
     <View
       style={styles.surface}
       onLayout={(event) => setSize(event.nativeEvent.layout)}
-      {...gesture.panHandlers}
     >
       <View
         pointerEvents="none"
@@ -103,7 +212,7 @@ export function Dial({
             height: radius * 2,
             borderRadius: radius,
             borderColor: theme.muted,
-            left: centerX - radius,
+            left: center - radius,
             top: size.height / 2 - radius,
           },
         ]}
@@ -119,85 +228,30 @@ export function Dial({
           },
         ]}
       />
-      {apps.slice(Math.max(0, selected - 4), selected + 5).map((app, local) => {
-        const index = Math.max(0, selected - 4) + local;
-        const range = Array.from({ length: 11 }, (_, i) => index - 5 + i);
-        const x = range.map((value) => {
-          const a = (index - value) * 0.22;
-          return centerX + (left ? 1 : -1) * Math.cos(a) * radius - 110;
-        });
-        const y = range.map(
-          (value) =>
-            size.height / 2 + Math.sin((index - value) * 0.22) * radius - 24,
-        );
-        return (
-          <Animated.View
-            key={app.packageName}
-            style={[
-              styles.item,
-              {
-                opacity: position.interpolate({
-                  inputRange: [index - 5, index, index + 5],
-                  outputRange: [0, 1, 0],
-                  extrapolate: "clamp",
-                }),
-                transform: [
-                  {
-                    translateX: position.interpolate({
-                      inputRange: range,
-                      outputRange: x,
-                      extrapolate: "clamp",
-                    }),
-                  },
-                  {
-                    translateY: position.interpolate({
-                      inputRange: range,
-                      outputRange: y,
-                      extrapolate: "clamp",
-                    }),
-                  },
-                  {
-                    rotate: position.interpolate({
-                      inputRange: [index - 5, index, index + 5],
-                      outputRange: [
-                        left ? "-63deg" : "63deg",
-                        "0deg",
-                        left ? "63deg" : "-63deg",
-                      ],
-                      extrapolate: "clamp",
-                    }),
-                  },
-                ],
-              },
-            ]}
-          >
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`${index === selected ? "Open" : "Select"} ${app.label}`}
-              accessibilityState={{ selected: index === selected }}
-              onPress={() => (index === selected ? onLaunch(app) : move(index))}
-              onLongPress={() =>
-                index === selected ? onMenu(app) : onAlphabet()
-              }
-              style={styles.target}
-            >
-              <Text
-                numberOfLines={1}
-                style={{
-                  color: index === selected ? theme.accent : theme.fg,
-                  fontSize: index === selected ? 24 : 17,
-                  textAlign: left ? "left" : "right",
-                  fontWeight: index === selected ? "600" : "400",
-                }}
-              >
-                {app.label.toLocaleLowerCase()}
-              </Text>
-            </Pressable>
-          </Animated.View>
-        );
-      })}
-      {!current && (
-        <Text style={{ color: theme.muted, margin: 28 }}>
+      <GestureDetector gesture={pan}>
+        <Animated.View style={styles.gestureSurface}>
+          {apps
+            .slice(start, windowCenter + WINDOW_RADIUS + 1)
+            .map((app, offset) => (
+              <DialItem
+                key={app.packageName}
+                app={app}
+                index={start + offset}
+                position={position}
+                size={size}
+                left={left}
+                theme={theme}
+                selected={selected === start + offset}
+                onSelect={select}
+                onLaunch={onLaunch}
+                onMenu={onMenu}
+                onAlphabet={onAlphabet}
+              />
+            ))}
+        </Animated.View>
+      </GestureDetector>
+      {!count && (
+        <Text style={[styles.empty, { color: theme.muted }]}>
           Your dial is empty. Add apps from search.
         </Text>
       )}
@@ -206,7 +260,7 @@ export function Dial({
           accessibilityRole="button"
           accessibilityLabel="Previous app"
           disabled={selected === 0}
-          onPress={() => move(selected - 1)}
+          onPress={() => select(selected - 1)}
           style={styles.control}
         >
           <Text style={{ color: theme.accent }}>↑</Text>
@@ -223,7 +277,7 @@ export function Dial({
           accessibilityRole="button"
           accessibilityLabel="Next app"
           disabled={selected >= count - 1}
-          onPress={() => move(selected + 1)}
+          onPress={() => select(selected + 1)}
           style={styles.control}
         >
           <Text style={{ color: theme.accent }}>↓</Text>
@@ -234,10 +288,13 @@ export function Dial({
 }
 const styles = StyleSheet.create({
   surface: { flex: 1, minHeight: 280, overflow: "hidden" },
+  gestureSurface: { flex: 1 },
   rim: { position: "absolute", borderWidth: 1, opacity: 0.18 },
   notch: { position: "absolute", width: 24, height: 2 },
   item: { position: "absolute", width: 220 },
-  target: { minHeight: 48, justifyContent: "center", paddingHorizontal: 8 },
+  target: { minHeight: 48, justifyContent: "center", paddingHorizontal: 16 },
+  label: { fontSize: 18, fontWeight: "500" },
+  empty: { position: "absolute", top: 24, marginHorizontal: 28 },
   controls: {
     position: "absolute",
     bottom: 0,

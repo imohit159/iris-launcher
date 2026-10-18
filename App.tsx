@@ -1,3 +1,4 @@
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -422,8 +423,8 @@ function Home() {
                 </View>
               ))}
               <Text style={[styles.note, { color: theme.muted }]}>
-                Sound follows your phone’s ringer mode and system touch sounds.
-                Add your favorite apps from search to fill the dial.
+                Sound follows your phone’s ringer mode. System touch sounds can
+                stay off. Add your favorite apps from search to fill the dial.
               </Text>
               {button("Choose apps for your dial", () => {
                 setQuery("");
@@ -450,9 +451,11 @@ function Home() {
 }
 export default function App() {
   return (
-    <SafeAreaProvider>
-      <Home />
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <Home />
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
 const styles = StyleSheet.create({

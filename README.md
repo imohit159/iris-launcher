@@ -6,7 +6,7 @@ An Android home-screen launcher rebuilt from scratch with Expo and TypeScript, i
 
 Node 24.22.0 LTS, pnpm 12.9.1, Expo SDK 57, React Native 0.86.3 and JDK 17. Expo SDK 58 currently selects React Native 0.88 / Android SDK 37, which was unavailable from the Android SDK manager on this machine. SDK 57 uses the available SDK 36 and Build Tools 36.0.0, NDK 27.1.12297006, CMake 3.22.1.
 
-**Use an Expo development build, not Expo Go.** Installed-app discovery, HOME registration and the local sound module require native Android code. JavaScript changes support Fast Refresh after the first development build; native/config changes require rebuilding.
+**Use an Expo development build, not Expo Go.** Installed-app discovery, HOME registration and the local sound module require native Android code. JavaScript changes support Fast Refresh after the first development build; native/config changes require rebuilding. `pnpm android` uses Android’s `debugOptimized` development variant so native animation code is optimized while Metro and Fast Refresh remain enabled.
 
 ## First baseline
 
@@ -14,7 +14,7 @@ Node 24.22.0 LTS, pnpm 12.9.1, Expo SDK 57, React Native 0.86.3 and JDK 17. Expo
 - Search installed apps, add/remove favorites, and an intentionally empty dial until apps are chosen.
 - A–Z picker (also available by holding an unselected app); selected-app long press offers app info and removal.
 - Dusk, ember, signal and paper palettes; left/right dial placement.
-- System click sound and Expo Android haptics, with independent switches. Sound respects silent/vibrate mode and Android touch sounds.
+- Preloaded dial click and Expo Android haptics, with independent switches. Sound respects silent/vibrate mode and works when Android touch sounds are disabled.
 - Clock/date, clock shortcut, saved preferences, first-run settings and default-home selection.
 - Refresh on foreground, package installation and removal; user-visible load/save/launch errors.
 
@@ -65,7 +65,7 @@ cd android
 ./gradlew assembleDebug -PreactNativeArchitectures=arm64-v8a --max-workers=2
 ```
 
-`plugins/withAndroidHome.js` registers MAIN/HOME/DEFAULT on MainActivity and preserves singleTask behavior across clean prebuilds. `react-native-launcher-kit` handles app discovery and launching. `modules/dial-feedback` is a local Expo module for Android system click sounds; Expo autolinking discovers it automatically.
+`plugins/withAndroidHome.js` registers MAIN/HOME/DEFAULT on MainActivity and preserves singleTask behavior across clean prebuilds. `react-native-launcher-kit` handles app discovery and launching. `modules/dial-feedback` is a local Expo module for low-latency Android dial clicks; Expo autolinking discovers it automatically.
 
 `pnpm check` runs TypeScript, ESLint and four Node tests covering catalog normalization, search, favorites, alphabet lookup and icon URIs. Native behavior, sound, haptics, gesture feel and default-home lifecycle require phone testing. Never infer those from unit tests.
 
@@ -82,3 +82,20 @@ Generated native projects, SDK paths, dependencies and signing credentials remai
 Debug APK: `android/app/build/outputs/apk/debug/app-debug.apk` (ignored build output). No Android phone was connected during verification; physical-device behavior remains unverified.
 
 Initial Maven downloads hit TLS errors and stalled requests. The successful build used `-Dorg.gradle.internal.http.connectionTimeout=15000 -Dorg.gradle.internal.http.socketTimeout=15000`; repeat with these flags if dependency downloads stall. TLS certificate verification stays enabled.
+
+## Dial regression checks
+
+The dial uses UI-thread Gesture Handler/Reanimated motion, memoized gesture objects, stable batched rows, and Android's synchronous transform fast path. Animated press targets use Gesture Handler to keep touch detection accurate. The rationale follows [Reanimated's performance guide](https://docs.swmansion.com/react-native-reanimated/docs/guides/performance/).
+
+The bundled click is original PCM audio, preloaded asynchronously by SoundPool. Iris's sound preference and ringer mode control playback; Android's touch-sounds preference does not. Regenerate the sample with `python scripts/generate-dial-click.py` if changing the sound.
+
+October 18, 2026, vivo V2228: original debug replay showed 29.51% janky frames. The optimized development client measured 11.58%, then 8.08% on two guarded four-swipe replays (95th percentile 22 ms). These are development-device samples, not a guarantee across devices. Plain unoptimized Reanimated debug builds remained slower; use the default optimized development command. The sound sample was observed starting real Android AudioTracks with system touch sounds disabled.
+
+With the phone connected, Metro running, and Iris's dial visible:
+
+```sh
+source .local-env.sh
+python scripts/profile-dial.py --max-jank-percent 25
+```
+
+The check rejects another screen or too few rendered frames; compare measurements on the same phone and build variant. The 25% threshold is a tolerant regression check for this phone, not a target for release performance. Native build verification also passed for `assembleDebugOptimized`; APK path: `android/app/build/outputs/apk/debugOptimized/app-debugOptimized.apk`.
