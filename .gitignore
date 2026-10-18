@@ -44,3 +44,9 @@ yarn-error.*
 .local-env.sh
 local.properties
 *.keystore
+
+# Local Expo module build outputs
+**/build/
+**/.cxx/
+**/.gradle/
+**/.kotlin/
