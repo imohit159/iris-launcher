@@ -15,7 +15,7 @@ Node 24.22.0 LTS, pnpm 12.9.1, Expo SDK 57, React Native 0.86.3 and JDK 17. Expo
 - Inline letter dial by holding an unselected app and sliding/releasing; selected-app long press offers app info and removal.
 - Dusk, ember, signal and paper palettes; left/right placement and five reference dial layouts.
 - Preloaded dial click and Expo Android haptics, with independent switches. Sound respects silent/vibrate mode and works when Android touch sounds are disabled.
-- Clock/date, clock shortcut, saved preferences, first-run settings and default-home selection.
+- Detent-style clock/date with no home header; hold empty space for settings. Clock shortcut, saved preferences, first-run settings and default-home selection.
 - Refresh on foreground, package installation and removal; user-visible load/save/launch errors.
 
 This is the first Expo baseline, not complete Detent parity. Still to implement: notification dots and permission flow, dynamic app shortcuts, theme wallpapers and custom photos, lock-screen wallpaper, hardware keyboard controls, launch animation polish. See [architecture and phases](docs/ARCHITECTURE.md).

@@ -15,7 +15,7 @@ The reference is native Kotlin/Compose; Iris remains Expo/React Native. Skia rec
 
 Hold an unselected dial row for 500 ms to enter the inline letter dial; slide and release to select the first app under that letter. A stationary letter hold can therefore select an earlier app with the same initial: this is deliberate reference behavior. Holding the selected app opens its menu; holding empty space opens settings. Rebase cumulative pan translation at the app/letter coordinate transition; cancelled recognizers must not independently snap the same gesture. Do not replace this with a separate alphabet modal.
 
-Five reference layouts are selectable in settings. JetBrains Mono regular, medium and light are copied from the reference's `res/font`; app labels preserve case and use the reference truncation. The search pill sits opposite the dial and disappears during scrubbing. Iris's existing clock, header, palettes and app-management screens remain its own UI. Notifications, app shortcuts, launch transitions and wallpapers are separate parity work.
+Five reference layouts are selectable in settings. JetBrains Mono regular, medium and light are copied from the reference's `res/font`; app labels preserve case and use the reference truncation. The search pill sits opposite the dial and disappears during scrubbing. The home header is omitted as in Detent. The clock uses its opposite-side placement, 68-unit light mono typography and compact date. Iris's palettes and app-management screens remain its own UI. Notifications, app shortcuts, launch transitions and wallpapers are separate parity work.
 
 The port retains Detent's MIT notice and JetBrains Mono's OFL in `licenses/notices.json`. Both are bundled and readable from Settings → Open-source licenses.
 

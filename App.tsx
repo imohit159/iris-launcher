@@ -56,6 +56,7 @@ function Home() {
   const k = width / DESIGN.width;
   const [fontsLoaded] = useFonts({
     JetBrainsMono: require("./assets/fonts/jetbrains_mono_regular.ttf"),
+    JetBrainsMonoLight: require("./assets/fonts/jetbrains_mono_light.ttf"),
   });
   const [scrubbing, setScrubbing] = useState(false);
   const [apps, setApps] = useState<InstalledApp[]>([]);
@@ -219,19 +220,6 @@ function Home() {
           onTick={() => tick(prefs.sound, prefs.haptics)}
         />
       )}
-      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-        <Text style={[styles.brand, { color: theme.accent }]}>
-          iris <Text style={{ color: theme.muted }}> / home</Text>
-        </Text>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Open settings"
-          onPress={() => setPanel("settings")}
-          style={styles.touch}
-        >
-          <Text style={{ color: theme.muted, fontSize: 24 }}>☷</Text>
-        </Pressable>
-      </View>
       <Pressable
         onPress={() => {
           try {
@@ -243,24 +231,47 @@ function Home() {
         onLongPress={() => setPanel("settings")}
         accessibilityRole="button"
         accessibilityLabel="Open clock; hold for settings"
-        style={[styles.clockBlock, { opacity: scrubbing ? 0 : 1 }]}
+        style={[
+          styles.clockBlock,
+          {
+            top: Math.max(84 * k, insets.top + 44 * k),
+            [prefs.left ? "right" : "left"]: 28 * k,
+            alignItems: prefs.left ? "flex-end" : "flex-start",
+            gap: 6 * k,
+            opacity: scrubbing ? 0.25 : 1,
+          },
+        ]}
         pointerEvents={scrubbing ? "none" : "auto"}
       >
-        <Text style={[styles.clock, { color: theme.fg }]}>
+        <Text
+          allowFontScaling={false}
+          style={{
+            color: theme.fg,
+            fontFamily: fontsLoaded ? "JetBrainsMonoLight" : "monospace",
+            fontSize: 68 * k,
+            lineHeight: 68 * k,
+            letterSpacing: -3.4 * k,
+            includeFontPadding: false,
+          }}
+        >
           {now.toLocaleTimeString([], {
             hour: "2-digit",
             minute: "2-digit",
             hour12: false,
           })}
         </Text>
-        <Text style={[styles.date, { color: theme.muted }]}>
-          {now
-            .toLocaleDateString(undefined, {
-              weekday: "long",
-              month: "long",
-              day: "numeric",
-            })
-            .toLocaleLowerCase()}
+        <Text
+          allowFontScaling={false}
+          style={{
+            color: theme.muted,
+            fontFamily: fontsLoaded ? "JetBrainsMono" : "monospace",
+            fontSize: 13 * k,
+            lineHeight: 15.6 * k,
+            letterSpacing: 0.26 * k,
+            includeFontPadding: false,
+          }}
+        >
+          {`${now.toLocaleDateString("en", { weekday: "short" })} ${now.getDate()} ${now.toLocaleDateString("en", { month: "short" })}`.toLowerCase()}
         </Text>
       </Pressable>
       {!scrubbing && (
@@ -536,21 +547,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
-  brand: { fontSize: 15, letterSpacing: 2 },
   touch: {
     minWidth: 48,
     minHeight: 48,
     alignItems: "center",
     justifyContent: "center",
   },
-  clockBlock: { paddingHorizontal: 28, paddingTop: 24 },
-  clock: {
-    fontSize: 76,
-    fontWeight: "200",
-    letterSpacing: -4,
-    fontVariant: ["tabular-nums"],
-  },
-  date: { fontSize: 12, letterSpacing: 1 },
+  clockBlock: { position: "absolute" },
   center: {
     position: "absolute",
     top: 0,
