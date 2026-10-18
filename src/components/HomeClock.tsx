@@ -106,7 +106,7 @@ export function HomeClock({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${time}, ${date}. Open clock; hold for settings`}
+      accessibilityLabel={`${time}, ${date}. Open date and time settings; hold for settings`}
       onPress={onPress}
       onLongPress={onSettings}
       pointerEvents={scrubbing ? "none" : "auto"}

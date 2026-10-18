@@ -32,11 +32,17 @@ type Props = {
   theme: Theme;
   left: boolean;
   layout?: number;
-  onLaunch(app: App): void;
-  onMenu(app: App): void;
+  onLaunch?(app: App): void;
+  onMenu?(app: App): void;
   onSettings(): void;
   onTick(): void;
   onScrubChange(value: boolean): void;
+  themeMode?: boolean;
+  themeNames?: string[];
+  initialIndex?: number;
+  targetIndex?: number | null;
+  onThemeTick?(index: number): void;
+  onThemeSelect?(index: number): void;
 };
 export function Dial({
   apps,
@@ -48,6 +54,12 @@ export function Dial({
   onSettings,
   onTick,
   onScrubChange,
+  themeMode = false,
+  themeNames,
+  initialIndex = 0,
+  targetIndex,
+  onThemeTick,
+  onThemeSelect,
 }: Props) {
   const [size, setSize] = useState({ width: 412, height: 892 });
   const [selected, setSelected] = useState(0);
@@ -58,10 +70,28 @@ export function Dial({
     onSettings,
     onTick,
     onScrubChange,
+    onThemeTick,
+    onThemeSelect,
   });
   useEffect(() => {
-    callbacks.current = { onLaunch, onMenu, onSettings, onTick, onScrubChange };
-  }, [onLaunch, onMenu, onSettings, onTick, onScrubChange]);
+    callbacks.current = {
+      onLaunch,
+      onMenu,
+      onSettings,
+      onTick,
+      onScrubChange,
+      onThemeTick,
+      onThemeSelect,
+    };
+  }, [
+    onLaunch,
+    onMenu,
+    onSettings,
+    onTick,
+    onScrubChange,
+    onThemeTick,
+    onThemeSelect,
+  ]);
   const notifyScrub = useCallback(
     (value: boolean) => callbacks.current.onScrubChange(value),
     [],
@@ -81,8 +111,8 @@ export function Dial({
     112,
   );
   const reducedMotion = useReducedMotion();
-  const position = useSharedValue(0),
-    origin = useSharedValue(0),
+  const position = useSharedValue(initialIndex),
+    origin = useSharedValue(initialIndex),
     anchor = useSharedValue(0);
   const translation = useSharedValue(0),
     moved = useSharedValue(false),
@@ -92,20 +122,23 @@ export function Dial({
     kick = useSharedValue(0);
   const samples = useSharedValue<{ time: number; position: number }[]>([]);
   const lastTick = useSharedValue(0);
-  const names = useMemo(() => apps.map((app) => app.label), [apps]);
+  const names = useMemo(
+    () => (themeMode && themeNames ? themeNames : apps.map((app) => app.label)),
+    [apps, themeMode, themeNames],
+  );
   const letters = useMemo(
-    () => [...new Set(apps.map((app) => initial(app.label)))],
-    [apps],
+    () => [...new Set(names.map((name) => initial(name)))],
+    [names],
   );
   const labels = useMemo(
     () =>
       regular
-        ? apps.map((app) => ({
-            text: displayName(app.label),
-            glyphs: regular.getGlyphIDs(displayName(app.label)),
+        ? names.map((name) => ({
+            text: displayName(name),
+            glyphs: regular.getGlyphIDs(displayName(name)),
           }))
         : [],
-    [apps, regular],
+    [names, regular],
   );
   const alphabet = useMemo(
     () =>
@@ -132,10 +165,28 @@ export function Dial({
       position.set(reducedMotion ? target : withDialMotion(target)),
     [position, reducedMotion],
   );
-  const changed = useCallback((index: number, sound: boolean) => {
-    setSelected(index);
-    if (sound) callbacks.current.onTick();
-  }, []);
+
+  useEffect(() => {
+    if (targetIndex !== undefined && targetIndex !== null && names.length > 0) {
+      const n = names.length;
+      const cur = mod(Math.round(position.get()), n);
+      const diff =
+        mod(targetIndex - cur + Math.floor(n / 2), n) - Math.floor(n / 2);
+      const target = Math.round(position.get()) + diff;
+      position.set(reducedMotion ? target : withDialMotion(target));
+    }
+  }, [targetIndex, names.length, position, reducedMotion]);
+
+  const changed = useCallback(
+    (index: number, sound: boolean) => {
+      setSelected(index);
+      if (sound) callbacks.current.onTick();
+      if (themeMode && callbacks.current.onThemeTick) {
+        callbacks.current.onThemeTick(index);
+      }
+    },
+    [themeMode],
+  );
   useAnimatedReaction(
     () => ({ index: Math.round(position.get()), scrub: scrub.get() }),
     (next, previous) => {
@@ -148,10 +199,12 @@ export function Dial({
           kick.set(1);
           kick.set(withPawl());
         }
-        scheduleOnRN(changed, mod(next.index, apps.length), sound);
+        if (names.length > 0) {
+          scheduleOnRN(changed, mod(next.index, names.length), sound);
+        }
       }
     },
-    [apps.length, changed, reducedMotion],
+    [names.length, changed, reducedMotion],
   );
   const picture = useDerivedValue(() =>
     regular && medium && large
@@ -173,16 +226,24 @@ export function Dial({
   );
   const launchAt = useCallback(
     (index: number) => {
-      if (apps.length)
+      if (apps.length && callbacks.current.onLaunch)
         callbacks.current.onLaunch(apps[mod(index, apps.length)]);
     },
     [apps],
   );
+  const selectThemeAt = useCallback(
+    (index: number) => {
+      if (names.length && callbacks.current.onThemeSelect)
+        callbacks.current.onThemeSelect(mod(index, names.length));
+    },
+    [names.length],
+  );
   const menuAt = useCallback(
     (index: number) => {
-      if (apps.length) callbacks.current.onMenu(apps[mod(index, apps.length)]);
+      if (!themeMode && apps.length && callbacks.current.onMenu)
+        callbacks.current.onMenu(apps[mod(index, apps.length)]);
     },
-    [apps],
+    [apps, themeMode],
   );
   // Gesture builders register these callbacks; they do not invoke them during render.
   /* eslint-disable react-hooks/refs */
@@ -295,9 +356,11 @@ export function Dial({
         } else {
           consumed.set(true);
           position.set(Math.round(position.get()));
-          if (zone === "selected")
-            scheduleOnRN(menuAt, Math.round(position.get()));
-          else scheduleOnRN(showSettings);
+          if (zone === "selected") {
+            if (themeMode)
+              scheduleOnRN(selectThemeAt, Math.round(position.get()));
+            else scheduleOnRN(menuAt, Math.round(position.get()));
+          } else scheduleOnRN(showSettings);
         }
       });
     const tap = Gesture.Tap()
@@ -315,8 +378,10 @@ export function Dial({
           left,
         );
         if (row === null) return;
-        if (row === Math.round(position.get())) scheduleOnRN(launchAt, row);
-        else position.set(reducedMotion ? row : withDialMotion(row));
+        if (row === Math.round(position.get())) {
+          if (themeMode) scheduleOnRN(selectThemeAt, row);
+          else scheduleOnRN(launchAt, row);
+        } else position.set(reducedMotion ? row : withDialMotion(row));
       });
     return Gesture.Simultaneous(pan, hold, tap);
   }, [
@@ -339,6 +404,8 @@ export function Dial({
     samples,
     notifyScrub,
     changed,
+    themeMode,
+    selectThemeAt,
     menuAt,
     showSettings,
     launchAt,
@@ -351,8 +418,12 @@ export function Dial({
         onLayout={(event) => setSize(event.nativeEvent.layout)}
         accessible
         accessibilityRole="adjustable"
-        accessibilityLabel="App dial"
-        accessibilityValue={{ text: apps[selected]?.label ?? "Empty dial" }}
+        accessibilityLabel={themeMode ? "Theme dial" : "App dial"}
+        accessibilityValue={{
+          text: themeMode
+            ? (names[selected] ?? "Theme")
+            : (apps[selected]?.label ?? "Empty dial"),
+        }}
         accessibilityActions={[
           { name: "increment" },
           { name: "decrement" },
@@ -361,9 +432,13 @@ export function Dial({
         ]}
         onAccessibilityAction={(event) => {
           const action = event.nativeEvent.actionName;
-          if (action === "activate") launchAt(Math.round(position.get()));
-          else if (action === "longpress") menuAt(Math.round(position.get()));
-          else
+          if (action === "activate") {
+            if (themeMode) selectThemeAt(Math.round(position.get()));
+            else launchAt(Math.round(position.get()));
+          } else if (action === "longpress") {
+            if (themeMode) selectThemeAt(Math.round(position.get()));
+            else menuAt(Math.round(position.get()));
+          } else
             animate(
               Math.round(position.get()) + (action === "increment" ? 1 : -1),
             );
@@ -372,7 +447,7 @@ export function Dial({
         <Canvas style={StyleSheet.absoluteFill} pointerEvents="none">
           <Picture picture={picture} />
         </Canvas>
-        {!apps.length && (
+        {!themeMode && !apps.length && (
           <View pointerEvents="none" style={styles.empty}>
             <Text style={{ color: theme.muted }}>
               Your dial is empty. Add apps from search.

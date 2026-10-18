@@ -5,8 +5,6 @@ import {
   Alert,
   AppState,
   BackHandler,
-  FlatList,
-  Image,
   Modal,
   PixelRatio,
   Pressable,
@@ -14,7 +12,6 @@ import {
   StyleSheet,
   Switch,
   Text,
-  TextInput,
   View,
   useWindowDimensions,
 } from "react-native";
@@ -24,23 +21,27 @@ import {
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
-import * as IntentLauncher from "expo-intent-launcher";
 import { pickWallpaper } from "./src/wallpaper/picker";
 import { wallpaperUri } from "./src/wallpaper/storage";
 import { HomeClock } from "./src/components/HomeClock";
 import { ThemeBackdrop } from "./src/components/ThemeBackdrop";
 import { Dial } from "./src/components/Dial";
+import { ThemeCards } from "./src/components/ThemeCards";
+import { SearchSheet } from "./src/components/SearchSheet";
+import { QuickMenu } from "./src/components/QuickMenu";
+import { ThemeDialOverlay } from "./src/components/ThemeDialOverlay";
 import {
   launch,
   loadApps,
-  openClock,
+  openAppDetails,
+  openAppNotificationSettings,
+  openDateSettings,
+  openNotificationSettings,
   setHome,
   watchApps,
 } from "./src/launcher/android";
 import {
   favorites,
-  iconUri,
-  search,
   type App as InstalledApp,
 } from "./src/launcher/catalog";
 import {
@@ -48,12 +49,43 @@ import {
   readPreferences,
   savePreferences,
   themes,
+  THEME_LIST,
+  THEME_NAMES,
   type Preferences,
 } from "./src/preferences";
 import { useFonts } from "expo-font";
 import { DESIGN, layouts } from "./src/dial/reference";
 import notices from "./licenses/notices.json";
 import { tick } from "./src/feedback";
+
+function SettingButton({
+  label,
+  onPress,
+  disabled = false,
+  backgroundColor,
+  accentColor,
+}: {
+  label: string;
+  onPress: () => void;
+  disabled?: boolean;
+  backgroundColor: string;
+  accentColor: string;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={onPress}
+      disabled={disabled}
+      accessibilityState={{ disabled }}
+      style={[
+        styles.button,
+        { backgroundColor, opacity: disabled ? 0.5 : 1 },
+      ]}
+    >
+      <Text style={{ color: accentColor }}>{label}</Text>
+    </Pressable>
+  );
+}
 
 function Home() {
   const { width, height } = useWindowDimensions();
@@ -73,7 +105,11 @@ function Home() {
   const [panel, setPanel] = useState<"search" | "settings" | "licenses" | null>(
     null,
   );
-  const [query, setQuery] = useState("");
+  const [heldApp, setHeldApp] = useState<InstalledApp | null>(null);
+  const [themeDialMode, setThemeDialMode] = useState(false);
+  const [previewThemeIndex, setPreviewThemeIndex] = useState(0);
+  const [themeTargetIndex, setThemeTargetIndex] = useState<number | null>(null);
+  const previousThemeRef = useRef(prefs.theme);
   const [now, setNow] = useState(new Date());
   const alive = useRef(true);
   const writes = useRef(Promise.resolve());
@@ -82,7 +118,6 @@ function Home() {
     () => favorites(apps, prefs.favorites),
     [apps, prefs.favorites],
   );
-  const results = useMemo(() => search(apps, query), [apps, query]);
   const refresh = useCallback(async () => {
     try {
       const list = await loadApps();
@@ -104,6 +139,9 @@ function Home() {
       .then((value) => {
         if (alive.current) {
           setPrefs(value);
+          const idx = THEME_LIST.findIndex((t) => t.name === value.theme);
+          setPreviewThemeIndex(idx >= 0 ? idx : 0);
+          previousThemeRef.current = value.theme;
           if (!value.setupDone) setPanel("settings");
         }
       })
@@ -114,9 +152,11 @@ function Home() {
         ),
       )
       .finally(() => {
-        if (alive.current) setReady(true);
+        if (alive.current) {
+          setReady(true);
+          void refresh();
+        }
       });
-    void refresh();
     const stop = watchApps(() => {
       void refresh();
     });
@@ -133,18 +173,35 @@ function Home() {
       timer = setTimeout(updateClock, 60000 - (current.getTime() % 60000) + 20);
     };
     updateClock();
-    const back = BackHandler.addEventListener("hardwareBackPress", () => {
-      setPanel(null);
-      return true;
-    });
     return () => {
       alive.current = false;
       stop();
       subscription.remove();
-      back.remove();
       clearTimeout(timer);
     };
   }, [refresh]);
+  useEffect(() => {
+    const back = BackHandler.addEventListener("hardwareBackPress", () => {
+      if (heldApp) {
+        setHeldApp(null);
+        return true;
+      }
+      if (themeDialMode) {
+        setPrefs((previous) => ({
+          ...previous,
+          theme: previousThemeRef.current,
+        }));
+        setThemeDialMode(false);
+        return true;
+      }
+      if (panel !== null) {
+        setPanel(null);
+        return true;
+      }
+      return false;
+    });
+    return () => back.remove();
+  }, [heldApp, themeDialMode, panel]);
   useEffect(() => {
     if (ready)
       writes.current = writes.current
@@ -167,7 +224,6 @@ function Home() {
     try {
       await launch(app);
       setPanel(null);
-      setQuery("");
     } catch {
       Alert.alert(
         "Could not open app",
@@ -176,22 +232,45 @@ function Home() {
       void refresh();
     }
   };
-  const menu = (app: InstalledApp) =>
-    Alert.alert(app.label, "Manage this app", [
-      {
-        text: "App info",
-        onPress: () => {
-          void IntentLauncher.startActivityAsync(
-            "android.settings.APPLICATION_DETAILS_SETTINGS",
-            { data: `package:${app.packageName}` },
-          ).catch(() =>
-            Alert.alert("Unavailable", "Could not open app settings."),
-          );
-        },
-      },
-      { text: "Remove from dial", onPress: () => favorite(app.packageName) },
-      { text: "Cancel", style: "cancel" },
-    ]);
+  const menu = (app: InstalledApp) => {
+    setHeldApp(app);
+  };
+  const startThemeDial = () => {
+    previousThemeRef.current = prefs.theme;
+    const idx = THEME_LIST.findIndex((t) => t.name === prefs.theme);
+    setPreviewThemeIndex(idx >= 0 ? idx : 0);
+    setThemeTargetIndex(idx >= 0 ? idx : 0);
+    setPanel(null);
+    setThemeDialMode(true);
+  };
+  const handleThemeTick = useCallback((index: number) => {
+    setPreviewThemeIndex(index);
+    const themeDef = THEME_LIST[index];
+    if (themeDef) {
+      setPrefs((previous) =>
+        previous.theme === themeDef.name
+          ? previous
+          : { ...previous, theme: themeDef.name },
+      );
+    }
+  }, []);
+  const handleThemeDone = () => {
+    setThemeDialMode(false);
+  };
+  const handleThemeCancel = () => {
+    setPrefs((previous) => ({
+      ...previous,
+      theme: previousThemeRef.current,
+    }));
+    setThemeDialMode(false);
+  };
+  const handleJumpGroup = (group: "phone" | "omarchy") => {
+    const first = THEME_LIST.findIndex((t) => t.group === group);
+    if (first >= 0) {
+      setThemeTargetIndex(first);
+      tick(prefs.sound, prefs.haptics);
+    }
+  };
   const chooseWallpaper = async () => {
     if (wallpaperOperation.current || !ready) return;
     wallpaperOperation.current = true;
@@ -213,23 +292,9 @@ function Home() {
       if (alive.current) setWallpaperBusy(false);
     }
   };
-  const button = (label: string, action: () => void, disabled = false) => (
-    <Pressable
-      accessibilityRole="button"
-      onPress={action}
-      disabled={disabled}
-      accessibilityState={{ disabled }}
-      style={[
-        styles.button,
-        { backgroundColor: theme.panel, opacity: disabled ? 0.5 : 1 },
-      ]}
-    >
-      <Text style={{ color: theme.accent }}>{label}</Text>
-    </Pressable>
-  );
   return (
     <View style={[styles.screen, { backgroundColor: theme.bg }]}>
-      <StatusBar style={theme.light ? "dark" : "light"} />
+      <StatusBar hidden={!prefs.statusBar} style={theme.light ? "dark" : "light"} />
       <ThemeBackdrop
         theme={theme}
         left={prefs.left}
@@ -257,112 +322,179 @@ function Home() {
       ) : error ? (
         <View style={styles.center}>
           <Text style={{ color: theme.fg }}>{error}</Text>
-          {button("Try again", () => {
-            setLoading(true);
-            void refresh();
-          })}
-        </View>
-      ) : (
-        <Dial
-          key={onDial.map((app) => app.packageName).join("|")}
-          apps={onDial}
-          theme={theme}
-          left={prefs.left}
-          onLaunch={(app) => {
-            void open(app);
-          }}
-          onMenu={menu}
-          layout={prefs.layout}
-          onSettings={() => setPanel("settings")}
-          onScrubChange={setScrubbing}
-          onTick={() => tick(prefs.sound, prefs.haptics)}
-        />
-      )}
-      <HomeClock
-        now={now}
-        scale={k}
-        top={Math.max(84 * k, insets.top + 44 * k)}
-        width={width - 56 * k}
-        left={prefs.left}
-        scrubbing={scrubbing}
-        theme={theme}
-        onPress={() => {
-          try {
-            openClock();
-          } catch {
-            Alert.alert("Clock unavailable");
-          }
-        }}
-        onSettings={() => setPanel("settings")}
-      />
-      {!scrubbing && (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Search apps"
-          onPress={() => {
-            setQuery("");
-            setPanel("search");
-          }}
-          style={[
-            styles.searchPill,
-            {
-              top: Math.min(height - 96 * k, height - insets.bottom - 56 * k),
-              [prefs.left ? "right" : "left"]: 24 * k,
-              height: 44 * k,
-              paddingLeft: 14 * k,
-              paddingRight: 18 * k,
-              gap: 10 * k,
-              borderColor: `${theme.fg}38`,
-              backgroundColor: `${theme.bg}8c`,
-            },
-          ]}
-        >
-          <View style={{ width: 14 * k, height: 14 * k }}>
-            <View
-              style={{
-                width: 9 * k,
-                height: 9 * k,
-                borderRadius: 9 * k,
-                borderWidth: 1.3 * k,
-                borderColor: theme.fg,
-              }}
-            />
-            <View
-              style={{
-                position: "absolute",
-                width: 6 * k,
-                height: 1.3 * k,
-                left: 8 * k,
-                top: 10 * k,
-                backgroundColor: theme.fg,
-                transform: [{ rotate: "45deg" }],
-              }}
-            />
-          </View>
-          <Text
-            style={{
-              color: theme.fg,
-              fontSize: 13 * k,
-              fontFamily: fontsLoaded ? "JetBrainsMono" : "monospace",
+          <SettingButton
+            label="Try again"
+            onPress={() => {
+              setLoading(true);
+              void refresh();
             }}
-          >
-            search
-          </Text>
-        </Pressable>
+            backgroundColor={theme.panel}
+            accentColor={theme.accent}
+          />
+        </View>
+      ) : themeDialMode ? (
+        <>
+          <Dial
+            key="theme-dial"
+            themeMode
+            themeNames={THEME_NAMES}
+            initialIndex={previewThemeIndex}
+            targetIndex={themeTargetIndex}
+            apps={onDial}
+            theme={theme}
+            left={prefs.left}
+            layout={prefs.layout}
+            onSettings={() => {}}
+            onScrubChange={setScrubbing}
+            onTick={() => tick(prefs.sound, prefs.haptics)}
+            onThemeTick={handleThemeTick}
+            onThemeSelect={handleThemeDone}
+          />
+          <ThemeDialOverlay
+            theme={theme}
+            themeDef={THEME_LIST[previewThemeIndex] ?? THEME_LIST[0]}
+            left={prefs.left}
+            scale={k}
+            insets={insets}
+            onJumpGroup={handleJumpGroup}
+            onCancel={handleThemeCancel}
+            onDone={handleThemeDone}
+          />
+        </>
+      ) : (
+        <>
+          <Dial
+            key={onDial.map((app) => app.packageName).join("|")}
+            apps={onDial}
+            theme={theme}
+            left={prefs.left}
+            layout={prefs.layout}
+            onLaunch={(app) => {
+              void open(app);
+            }}
+            onMenu={menu}
+            onSettings={() => setPanel("settings")}
+            onScrubChange={setScrubbing}
+            onTick={() => tick(prefs.sound, prefs.haptics)}
+          />
+          <HomeClock
+            now={now}
+            scale={k}
+            top={Math.max(84 * k, insets.top + 44 * k)}
+            width={width - 56 * k}
+            left={prefs.left}
+            scrubbing={scrubbing}
+            theme={theme}
+            onPress={() => {
+              void openDateSettings().catch(() => {
+                Alert.alert(
+                  "Settings unavailable",
+                  "Could not open date and time settings.",
+                );
+              });
+            }}
+            onSettings={() => setPanel("settings")}
+          />
+          {!scrubbing && (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Search apps"
+              onPress={() => setPanel("search")}
+              style={[
+                styles.searchPill,
+                {
+                  top: Math.min(
+                    height - 96 * k,
+                    height - insets.bottom - 56 * k,
+                  ),
+                  [prefs.left ? "right" : "left"]: 24 * k,
+                  height: 44 * k,
+                  paddingLeft: 14 * k,
+                  paddingRight: 18 * k,
+                  gap: 10 * k,
+                  borderColor: `${theme.fg}38`,
+                  backgroundColor: `${theme.bg}8c`,
+                },
+              ]}
+            >
+              <View style={{ width: 14 * k, height: 14 * k }}>
+                <View
+                  style={{
+                    width: 9 * k,
+                    height: 9 * k,
+                    borderRadius: 9 * k,
+                    borderWidth: 1.3 * k,
+                    borderColor: theme.fg,
+                  }}
+                />
+                <View
+                  style={{
+                    position: "absolute",
+                    width: 6 * k,
+                    height: 1.3 * k,
+                    left: 8 * k,
+                    top: 10 * k,
+                    backgroundColor: theme.fg,
+                    transform: [{ rotate: "45deg" }],
+                  }}
+                />
+              </View>
+              <Text
+                style={{
+                  color: theme.fg,
+                  fontSize: 13 * k,
+                  fontFamily: fontsLoaded ? "JetBrainsMono" : "monospace",
+                }}
+              >
+                search
+              </Text>
+            </Pressable>
+          )}
+        </>
       )}
+
+      {/* Detent QuickMenu popup card on long press */}
+      <QuickMenu
+        app={heldApp}
+        theme={theme}
+        left={prefs.left}
+        scale={k}
+        centerY={height / 2}
+        onClose={() => setHeldApp(null)}
+        onAppInfo={() => {
+          if (heldApp) void openAppDetails(heldApp.packageName);
+        }}
+        onAppNotifications={() => {
+          if (heldApp) void openAppNotificationSettings(heldApp.packageName);
+        }}
+        onRemoveFromDial={() => {
+          if (heldApp) favorite(heldApp.packageName);
+        }}
+      />
+
+      {/* Detent SearchSheet */}
+      <SearchSheet
+        visible={panel === "search"}
+        apps={apps}
+        favorites={prefs.favorites}
+        theme={theme}
+        onClose={() => setPanel(null)}
+        onLaunch={(app) => {
+          setPanel(null);
+          void open(app);
+        }}
+        onToggleFavorite={favorite}
+      />
+
       <Modal
-        visible={panel !== null}
+        visible={panel === "settings" || panel === "licenses"}
         animationType="slide"
         onRequestClose={() => setPanel(null)}
       >
         <SafeAreaView style={[styles.screen, { backgroundColor: theme.bg }]}>
           <View style={styles.header}>
             <Text style={[styles.title, { color: theme.fg }]}>
-              {panel === "search"
-                ? "your apps"
-                : panel === "licenses"
-                  ? "licenses"
-                  : "make it yours"}
+              {panel === "licenses" ? "licenses" : "make it yours"}
             </Text>
             <Pressable
               accessibilityRole="button"
@@ -375,69 +507,7 @@ function Home() {
               <Text style={{ color: theme.accent }}>Done</Text>
             </Pressable>
           </View>
-          {panel === "search" ? (
-            <>
-              <TextInput
-                accessibilityLabel="Search installed apps"
-                autoFocus
-                value={query}
-                onChangeText={setQuery}
-                placeholder="Find an app…"
-                placeholderTextColor={theme.muted}
-                style={[
-                  styles.input,
-                  { backgroundColor: theme.panel, color: theme.fg },
-                ]}
-              />
-              <Text style={[styles.note, { color: theme.muted }]}>
-                Tap + to add an app to your dial.
-              </Text>
-              <FlatList
-                data={results}
-                keyExtractor={(app) => app.packageName}
-                keyboardShouldPersistTaps="handled"
-                ListEmptyComponent={
-                  <Text style={[styles.note, { color: theme.muted }]}>
-                    No matching apps.
-                  </Text>
-                }
-                renderItem={({ item }) => (
-                  <View style={styles.row}>
-                    <Pressable
-                      accessibilityRole="button"
-                      onPress={() => {
-                        void open(item);
-                      }}
-                      style={styles.app}
-                    >
-                      {item.icon ? (
-                        <Image
-                          source={{ uri: iconUri(item.icon) }}
-                          style={styles.icon}
-                        />
-                      ) : null}
-                      <Text
-                        numberOfLines={1}
-                        style={{ color: theme.fg, flex: 1, fontSize: 16 }}
-                      >
-                        {item.label}
-                      </Text>
-                    </Pressable>
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel={`${prefs.favorites.includes(item.packageName) ? "Remove" : "Add"} ${item.label} ${prefs.favorites.includes(item.packageName) ? "from" : "to"} dial`}
-                      onPress={() => favorite(item.packageName)}
-                      style={styles.touch}
-                    >
-                      <Text style={{ color: theme.accent, fontSize: 24 }}>
-                        {prefs.favorites.includes(item.packageName) ? "−" : "+"}
-                      </Text>
-                    </Pressable>
-                  </View>
-                )}
-              />
-            </>
-          ) : panel === "licenses" ? (
+          {panel === "licenses" ? (
             <ScrollView contentContainerStyle={styles.settings}>
               {Object.entries(notices).map(([name, text]) => (
                 <View key={name}>
@@ -466,19 +536,28 @@ function Home() {
               <Text style={[styles.eyebrow, { color: theme.muted }]}>
                 WALLPAPER
               </Text>
-              {button(
-                wallpaperBusy ? "Saving wallpaper…" : "Choose custom wallpaper",
-                () => {
+              <SettingButton
+                label={
+                  wallpaperBusy
+                    ? "Saving wallpaper…"
+                    : "Choose custom wallpaper"
+                }
+                onPress={() => {
                   void chooseWallpaper();
-                },
-                wallpaperBusy || !ready,
+                }}
+                disabled={wallpaperBusy || !ready}
+                backgroundColor={theme.panel}
+                accentColor={theme.accent}
+              />
+              {prefs.customWallpaper && (
+                <SettingButton
+                  label="Use theme wallpaper"
+                  onPress={() => change("customWallpaper", null)}
+                  disabled={wallpaperBusy}
+                  backgroundColor={theme.panel}
+                  accentColor={theme.accent}
+                />
               )}
-              {prefs.customWallpaper &&
-                button(
-                  "Use theme wallpaper",
-                  () => change("customWallpaper", null),
-                  wallpaperBusy,
-                )}
               <Text
                 style={{
                   color: theme.muted,
@@ -491,30 +570,41 @@ function Home() {
                   ? "Your photo · theme colours stay active."
                   : "Theme wallpaper. Choose a photo to make it yours."}
               </Text>
-              <Text style={[styles.eyebrow, { color: theme.muted }]}>
-                THEME
-              </Text>
-              <View style={styles.swatches}>
-                {(Object.keys(themes) as (keyof typeof themes)[]).map(
-                  (name) => (
-                    <Pressable
-                      key={name}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected: prefs.theme === name }}
-                      onPress={() => change("theme", name)}
-                      style={[
-                        styles.swatch,
-                        {
-                          backgroundColor: themes[name].panel,
-                          borderColor:
-                            prefs.theme === name ? theme.accent : theme.panel,
-                        },
-                      ]}
-                    >
-                      <Text style={{ color: themes[name].accent }}>{name}</Text>
-                    </Pressable>
-                  ),
-                )}
+              <View style={styles.themeHeaderRow}>
+                <Text
+                  style={[
+                    styles.eyebrow,
+                    { color: theme.muted, marginBottom: 0 },
+                  ]}
+                >
+                  THEME
+                </Text>
+                <Text
+                  style={{
+                    fontSize: 11,
+                    color: theme.muted,
+                    letterSpacing: 0.5,
+                  }}
+                >
+                  Turn dial or slide · 27 themes
+                </Text>
+              </View>
+              <SettingButton
+                label="Turn dial to choose theme"
+                onPress={startThemeDial}
+                backgroundColor={theme.panel}
+                accentColor={theme.accent}
+              />
+              <View style={styles.themeCarouselWrapper}>
+                <ThemeCards
+                  selectedTheme={prefs.theme}
+                  onSelectTheme={(name) => {
+                    tick(prefs.sound, prefs.haptics);
+                    change("theme", name);
+                  }}
+                  currentTheme={theme}
+                  left={prefs.left}
+                />
               </View>
               <Text style={[styles.eyebrow, { color: theme.muted }]}>DIAL</Text>
               {layouts.map((layout, index) => (
@@ -534,39 +624,72 @@ function Home() {
                   </Text>
                 </Pressable>
               ))}
-              {(["left", "sound", "haptics"] as const).map((key) => (
-                <View style={styles.setting} key={key}>
-                  <Text style={{ color: theme.fg }}>
-                    {key === "left"
-                      ? "Dial on the left"
-                      : key === "sound"
-                        ? "Dial sound"
-                        : "Haptics"}
-                  </Text>
-                  <Switch
-                    accessibilityLabel={key}
-                    value={prefs[key]}
-                    onValueChange={(value) => change(key, value)}
-                  />
-                </View>
-              ))}
+              {(["left", "statusBar", "dots", "sound", "haptics"] as const).map(
+                (key) => (
+                  <View style={styles.setting} key={key}>
+                    <Text style={{ color: theme.fg }}>
+                      {key === "left"
+                        ? "Dial on the left"
+                        : key === "statusBar"
+                          ? "Status bar"
+                          : key === "dots"
+                            ? "Notification dots"
+                            : key === "sound"
+                              ? "Dial sound"
+                              : "Haptics"}
+                    </Text>
+                    <Switch
+                      accessibilityLabel={key}
+                      value={prefs[key]}
+                      onValueChange={(value) => change(key, value)}
+                    />
+                  </View>
+                ),
+              )}
+              <SettingButton
+                label="Manage app notifications"
+                onPress={() => {
+                  void openNotificationSettings().catch(() =>
+                    Alert.alert(
+                      "Notifications",
+                      "Open Android Settings → Notifications to manage per-app switches.",
+                    ),
+                  );
+                }}
+                backgroundColor={theme.panel}
+                accentColor={theme.accent}
+              />
               <Text style={[styles.note, { color: theme.muted }]}>
                 Sound follows your phone’s ringer mode. System touch sounds can
                 stay off. Add your favorite apps from search to fill the dial.
               </Text>
-              {button("Choose apps for your dial", () => {
-                setQuery("");
-                setPanel("search");
-              })}
-              {button("Open-source licenses", () => setPanel("licenses"))}
-              {button("Set Iris as your home app", () => {
-                void setHome().catch(() =>
-                  Alert.alert(
-                    "Choose Iris",
-                    "Open Android Settings → Apps → Default apps → Home app.",
-                  ),
-                );
-              })}
+              <SettingButton
+                label="Choose apps for your dial"
+                onPress={() => {
+                  setPanel("search");
+                }}
+                backgroundColor={theme.panel}
+                accentColor={theme.accent}
+              />
+              <SettingButton
+                label="Open-source licenses"
+                onPress={() => setPanel("licenses")}
+                backgroundColor={theme.panel}
+                accentColor={theme.accent}
+              />
+              <SettingButton
+                label="Set Iris as your home app"
+                onPress={() => {
+                  void setHome().catch(() =>
+                    Alert.alert(
+                      "Choose Iris",
+                      "Open Android Settings → Apps → Default apps → Home app.",
+                    ),
+                  );
+                }}
+                backgroundColor={theme.panel}
+                accentColor={theme.accent}
+              />
               <Text style={[styles.note, { color: theme.muted }]}>
                 To switch back later: Android Settings → Apps → Default apps →
                 Home app.
@@ -639,13 +762,16 @@ const styles = StyleSheet.create({
   },
   icon: { width: 40, height: 40, borderRadius: 10 },
   settings: { padding: 24 },
-  swatches: {
+  themeHeaderRow: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 16,
+  },
+  themeCarouselWrapper: {
+    marginHorizontal: -24,
     marginBottom: 24,
   },
-  swatch: { padding: 16, borderRadius: 12, borderWidth: 1 },
   setting: {
     flexDirection: "row",
     justifyContent: "space-between",

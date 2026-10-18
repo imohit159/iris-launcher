@@ -3,7 +3,14 @@ import { isWallpaperName } from "./wallpaper/model";
 import { restoreWallpaper } from "./wallpaper/storage";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { themes } from "./themes/catalog";
-export { themes, type Theme } from "./themes/catalog";
+export {
+  themes,
+  THEME_LIST,
+  THEME_NAMES,
+  type Theme,
+  type ThemeDef,
+  type ThemeName,
+} from "./themes/catalog";
 export type Preferences = {
   theme: keyof typeof themes;
   customWallpaper: string | null;
@@ -11,6 +18,8 @@ export type Preferences = {
   left: boolean;
   sound: boolean;
   haptics: boolean;
+  statusBar: boolean;
+  dots: boolean;
   favorites: string[];
   setupDone: boolean;
 };
@@ -21,6 +30,8 @@ export const defaults: Preferences = {
   left: false,
   sound: true,
   haptics: true,
+  statusBar: true,
+  dots: true,
   favorites: [],
   setupDone: false,
 };
@@ -48,6 +59,8 @@ export function parsePreferences(raw: string | null): Preferences {
     left: saved.left === true,
     sound: saved.sound !== false,
     haptics: saved.haptics !== false,
+    statusBar: saved.statusBar !== false,
+    dots: saved.dots !== false,
     favorites: Array.isArray(saved.favorites)
       ? saved.favorites.filter((id): id is string => typeof id === "string")
       : [],

@@ -197,3 +197,41 @@ export const themes = {
   white: palette(true, "#ffffff", "#000000", "#6e6e6e", "#504945", "white"),
 };
 export type ThemeName = keyof typeof themes;
+
+export type ThemeDef = {
+  name: ThemeName;
+  group: "phone" | "omarchy";
+  light: boolean;
+};
+
+export const THEME_LIST: ThemeDef[] = [
+  { name: "dusk", group: "phone", light: false },
+  { name: "ember", group: "phone", light: false },
+  { name: "signal", group: "phone", light: false },
+  { name: "paper", group: "phone", light: true },
+  { name: "catppuccin", group: "omarchy", light: false },
+  { name: "catppuccin-latte", group: "omarchy", light: true },
+  { name: "ethereal", group: "omarchy", light: false },
+  { name: "everforest", group: "omarchy", light: false },
+  { name: "flexoki-light", group: "omarchy", light: true },
+  { name: "gruvbox", group: "omarchy", light: false },
+  { name: "hackerman", group: "omarchy", light: false },
+  { name: "kanagawa", group: "omarchy", light: false },
+  { name: "last-horizon", group: "omarchy", light: false },
+  { name: "lumon", group: "omarchy", light: false },
+  { name: "lupine", group: "omarchy", light: true },
+  { name: "matte-black", group: "omarchy", light: false },
+  { name: "miasma", group: "omarchy", light: false },
+  { name: "nord", group: "omarchy", light: false },
+  { name: "osaka-jade", group: "omarchy", light: false },
+  { name: "retro-82", group: "omarchy", light: false },
+  { name: "ristretto", group: "omarchy", light: false },
+  { name: "rose-pine", group: "omarchy", light: true },
+  { name: "solitude", group: "omarchy", light: false },
+  { name: "starship", group: "omarchy", light: false },
+  { name: "tokyo-night", group: "omarchy", light: false },
+  { name: "vantablack", group: "omarchy", light: false },
+  { name: "white", group: "omarchy", light: true },
+];
+
+export const THEME_NAMES: string[] = THEME_LIST.map((t) => t.name);

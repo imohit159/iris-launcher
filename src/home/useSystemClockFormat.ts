@@ -13,5 +13,5 @@ export function useSystemClockFormat(): boolean {
     return () => subscription.remove();
   }, []);
   // Android clock settings can change while Iris is behind the Settings app.
-  return getCalendars()[0].uses24hourClock === true;
+  return getCalendars()[0]?.uses24hourClock === true;
 }
