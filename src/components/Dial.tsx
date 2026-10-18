@@ -14,6 +14,7 @@ import type { App } from "../launcher/catalog";
 import type { Theme } from "../preferences";
 import {
   DESIGN,
+  DEFAULT_LAYOUT_INDEX,
   displayName,
   initial,
   layouts,
@@ -43,6 +44,8 @@ type Props = {
   targetIndex?: number | null;
   onThemeTick?(index: number): void;
   onThemeSelect?(index: number): void;
+  /** Render the production dial without attaching touch or accessibility actions. */
+  preview?: boolean;
 };
 export function Dial({
   apps,
@@ -60,6 +63,7 @@ export function Dial({
   targetIndex,
   onThemeTick,
   onThemeSelect,
+  preview = false,
 }: Props) {
   const [size, setSize] = useState({ width: 412, height: 892 });
   const [selected, setSelected] = useState(0);
@@ -157,9 +161,9 @@ export function Dial({
   const g = geometry(
     size.width,
     size.height,
-    (layouts[layout] ?? layouts[0]).radius,
+    (layouts[layout] ?? layouts[DEFAULT_LAYOUT_INDEX]).radius,
   );
-  const radius = (layouts[layout] ?? layouts[0]).radius;
+  const radius = (layouts[layout] ?? layouts[DEFAULT_LAYOUT_INDEX]).radius;
   const animate = useCallback(
     (target: number) =>
       position.set(reducedMotion ? target : withDialMotion(target)),
@@ -411,52 +415,64 @@ export function Dial({
     launchAt,
   ]);
   /* eslint-enable react-hooks/refs */
-  return (
-    <GestureDetector gesture={gesture}>
-      <Animated.View
-        style={StyleSheet.absoluteFill}
-        onLayout={(event) => setSize(event.nativeEvent.layout)}
-        accessible
-        accessibilityRole="adjustable"
-        accessibilityLabel={themeMode ? "Theme dial" : "App dial"}
-        accessibilityValue={{
-          text: themeMode
-            ? (names[selected] ?? "Theme")
-            : (apps[selected]?.label ?? "Empty dial"),
-        }}
-        accessibilityActions={[
-          { name: "increment" },
-          { name: "decrement" },
-          { name: "activate" },
-          { name: "longpress" },
-        ]}
-        onAccessibilityAction={(event) => {
-          const action = event.nativeEvent.actionName;
-          if (action === "activate") {
-            if (themeMode) selectThemeAt(Math.round(position.get()));
-            else launchAt(Math.round(position.get()));
-          } else if (action === "longpress") {
-            if (themeMode) selectThemeAt(Math.round(position.get()));
-            else menuAt(Math.round(position.get()));
-          } else
-            animate(
-              Math.round(position.get()) + (action === "increment" ? 1 : -1),
-            );
-        }}
-      >
-        <Canvas style={StyleSheet.absoluteFill} pointerEvents="none">
-          <Picture picture={picture} />
-        </Canvas>
-        {!themeMode && !apps.length && (
-          <View pointerEvents="none" style={styles.empty}>
-            <Text style={{ color: theme.muted }}>
-              Your dial is empty. Add apps from search.
-            </Text>
-          </View>
-        )}
-      </Animated.View>
-    </GestureDetector>
+  const surface = (
+    <Animated.View
+      pointerEvents={preview ? "none" : "auto"}
+      style={StyleSheet.absoluteFill}
+      onLayout={(event) => setSize(event.nativeEvent.layout)}
+      accessible={!preview}
+      accessibilityRole={preview ? undefined : "adjustable"}
+      accessibilityLabel={preview ? undefined : themeMode ? "Theme dial" : "App dial"}
+      accessibilityValue={
+        preview
+          ? undefined
+          : {
+              text: themeMode
+                ? (names[selected] ?? "Theme")
+                : (apps[selected]?.label ?? "Empty dial"),
+            }
+      }
+      accessibilityActions={
+        preview
+          ? undefined
+          : [
+              { name: "increment" },
+              { name: "decrement" },
+              { name: "activate" },
+              { name: "longpress" },
+            ]
+      }
+      onAccessibilityAction={
+        preview
+          ? undefined
+          : (event) => {
+              const action = event.nativeEvent.actionName;
+              if (action === "activate") {
+                if (themeMode) selectThemeAt(Math.round(position.get()));
+                else launchAt(Math.round(position.get()));
+              } else if (action === "longpress") {
+                if (themeMode) selectThemeAt(Math.round(position.get()));
+                else menuAt(Math.round(position.get()));
+              } else
+                animate(
+                  Math.round(position.get()) + (action === "increment" ? 1 : -1),
+                );
+            }
+      }
+    >
+      <Canvas style={StyleSheet.absoluteFill} pointerEvents="none">
+        <Picture picture={picture} />
+      </Canvas>
+      {!themeMode && !apps.length && !preview && (
+        <View pointerEvents="none" style={styles.empty}>
+          <Text style={{ color: theme.muted }}>
+            Your dial is empty. Add apps from search.
+          </Text>
+        </View>
+      )}
+    </Animated.View>
   );
+  return preview ? surface : <GestureDetector gesture={gesture}>{surface}</GestureDetector>;
 }
 function initialWorklet(name: string) {
   "worklet";

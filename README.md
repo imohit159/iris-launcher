@@ -18,7 +18,7 @@ Node 24.22.0 LTS, pnpm 12.9.1, Expo SDK 57, React Native 0.86.3 and JDK 17. Expo
 - Detent-style clock/date with no home header; hold empty space for settings. Clock shortcut, saved preferences, first-run settings and default-home selection.
 - Refresh on foreground, package installation and removal; user-visible load/save/launch errors.
 
-This is the first Expo baseline, not complete Detent parity. Still to implement: notification dots and permission flow, dynamic app shortcuts, custom photos and lock-screen wallpaper, hardware keyboard controls, launch animation polish. See [architecture and phases](docs/ARCHITECTURE.md).
+This is the first Expo baseline, not complete Detent parity. Still to implement: notification dots and permission flow, dynamic app shortcuts, lock-screen wallpaper, hardware keyboard controls, and launch animation polish. See [architecture and phases](docs/ARCHITECTURE.md).
 
 ## Develop on this machine
 
@@ -67,7 +67,7 @@ cd android
 
 `plugins/withAndroidHome.js` registers MAIN/HOME/DEFAULT on MainActivity and preserves singleTask behavior across clean prebuilds. `react-native-launcher-kit` handles app discovery and launching. `modules/dial-feedback` is a local Expo module for low-latency Android dial clicks; Expo autolinking discovers it automatically.
 
-`pnpm check` runs TypeScript, ESLint and eleven Node tests covering catalog behavior, reference geometry, hold rebasing, motion, system clock formatting and theme completeness. Native behavior, sound, haptics, gesture feel and default-home lifecycle require phone testing. Never infer those from unit tests.
+`pnpm check` runs TypeScript, ESLint and Node tests covering catalog behavior, reference geometry, hold rebasing, motion, system clock formatting, wallpaper validation, and theme completeness. Native behavior, sound, haptics, gesture feel and default-home lifecycle require phone testing. Never infer those from unit tests.
 
 Generated native projects, SDK paths, dependencies and signing credentials remain ignored. Development builds include network access for Metro; launcher features do not upload app data.
 

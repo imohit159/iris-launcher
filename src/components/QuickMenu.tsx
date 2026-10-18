@@ -1,6 +1,7 @@
 import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import type { App } from "../launcher/catalog";
 import type { Theme } from "../preferences";
+import { SURFACES, TYPOGRAPHY } from "../design/tokens";
 
 type Props = {
   app: App | null;
@@ -49,8 +50,8 @@ export function QuickMenu({
             {
               width: cardWidth,
               top: cardTop,
-              backgroundColor: theme.panel,
-              borderColor: theme.muted2,
+              backgroundColor: SURFACES.elevated,
+              borderColor: SURFACES.secondary,
             },
             left ? { right: 24 * scale } : { left: 24 * scale },
           ]}
@@ -67,7 +68,7 @@ export function QuickMenu({
             {app.label.toLowerCase()}
           </Text>
 
-          <View style={[styles.divider, { backgroundColor: theme.muted2 }]} />
+          <View style={[styles.divider, { backgroundColor: SURFACES.secondary }]} />
 
           {/* App Info item */}
           <Pressable
@@ -136,9 +137,8 @@ const styles = StyleSheet.create({
     elevation: 12,
   },
   appTitle: {
-    fontSize: 11,
+    ...TYPOGRAPHY.meta,
     fontFamily: "JetBrainsMono",
-    letterSpacing: 0.6,
     paddingStart: 12,
     paddingTop: 10,
     paddingEnd: 12,
@@ -156,7 +156,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   itemText: {
-    fontSize: 13,
+    ...TYPOGRAPHY.utility,
     fontFamily: "JetBrainsMono",
   },
 });

@@ -5,20 +5,17 @@ import {
   Alert,
   AppState,
   BackHandler,
-  Image,
-  Modal,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
   PixelRatio,
   Pressable,
-  ScrollView,
   StyleSheet,
-  Switch,
   Text,
   View,
   useWindowDimensions,
 } from "react-native";
 import {
   SafeAreaProvider,
-  SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
@@ -30,6 +27,8 @@ import { Dial } from "./src/components/Dial";
 import { SearchSheet } from "./src/components/SearchSheet";
 import { QuickMenu } from "./src/components/QuickMenu";
 import { ThemeDialOverlay } from "./src/components/ThemeDialOverlay";
+import { SettingsPanel } from "./src/components/SettingsPanel";
+import { SettingButton } from "./src/components/SettingsPrimitives";
 import {
   launch,
   loadApps,
@@ -52,93 +51,23 @@ import {
   THEME_LIST,
   THEME_NAMES,
   type Preferences,
+  type ThemeName,
 } from "./src/preferences";
 import { useFonts } from "expo-font";
-import { DESIGN, layouts } from "./src/dial/reference";
-import notices from "./licenses/notices.json";
+import { DESIGN } from "./src/dial/reference";
 import { tick } from "./src/feedback";
+import { SURFACES, TYPOGRAPHY } from "./src/design/tokens";
 
-function SettingButton({
-  label,
-  onPress,
-  disabled = false,
-  backgroundColor,
-  accentColor,
-}: {
-  label: string;
-  onPress: () => void;
-  disabled?: boolean;
-  backgroundColor: string;
-  accentColor: string;
-}) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      onPress={onPress}
-      disabled={disabled}
-      accessibilityState={{ disabled }}
-      style={[
-        styles.button,
-        { backgroundColor, opacity: disabled ? 0.5 : 1 },
-      ]}
-    >
-      <Text style={{ color: accentColor }}>{label}</Text>
-    </Pressable>
-  );
-}
-
-function WallpaperCard({
-  uri,
-  busy,
-  disabled,
-  backgroundColor,
-  accentColor,
-  onPress,
-}: {
-  uri: string | null;
-  busy: boolean;
-  disabled: boolean;
-  backgroundColor: string;
-  accentColor: string;
-  onPress(): void;
-}) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={
-        uri ? "Change custom wallpaper" : "Choose custom wallpaper"
-      }
-      onPress={onPress}
-      disabled={disabled}
-      accessibilityState={{ disabled }}
-      style={[styles.wallpaperCard, { backgroundColor, opacity: disabled ? 0.5 : 1 }]}
-    >
-      {uri && (
-        <Image
-          source={{ uri }}
-          resizeMode="cover"
-          style={StyleSheet.absoluteFill}
-        />
-      )}
-      <View style={styles.wallpaperCardShade} />
-      <Text style={[styles.wallpaperCardText, { color: accentColor }]}>
-        {busy
-          ? "Saving wallpaper…"
-          : uri
-            ? "Change wallpaper"
-            : "Choose custom wallpaper"}
-      </Text>
-    </Pressable>
-  );
-}
-
-function SectionHeader({ label, color }: { label: string; color: string }) {
-  return (
-    <View style={[styles.sectionHeader, { borderColor: `${color}55` }]}>
-      <Text style={[styles.sectionHeaderText, { color }]}>{label}</Text>
-    </View>
-  );
-}
+const PREVIEW_DIAL_APPS: InstalledApp[] = [
+  { label: "Chrome", packageName: "preview.chrome", icon: "" },
+  { label: "Clock", packageName: "preview.clock", icon: "" },
+  { label: "Contacts", packageName: "preview.contacts", icon: "" },
+  { label: "Drive", packageName: "preview.drive", icon: "" },
+  { label: "Files", packageName: "preview.files", icon: "" },
+  { label: "Gmail", packageName: "preview.gmail", icon: "" },
+  { label: "Maps", packageName: "preview.maps", icon: "" },
+  { label: "Messages", packageName: "preview.messages", icon: "" },
+];
 
 function Home() {
   const { width, height } = useWindowDimensions();
@@ -158,9 +87,10 @@ function Home() {
   const [panel, setPanel] = useState<"search" | "settings" | "licenses" | null>(
     null,
   );
-  const [expandedAppearance, setExpandedAppearance] = useState<
-    "theme" | "dial" | null
-  >(null);
+  const [settingsScreen, setSettingsScreen] = useState<
+    "root" | "wallpaper" | "dial"
+  >("root");
+  const [settingsScrolled, setSettingsScrolled] = useState(false);
   const [heldApp, setHeldApp] = useState<InstalledApp | null>(null);
   const [themeDialMode, setThemeDialMode] = useState(false);
   const [previewThemeIndex, setPreviewThemeIndex] = useState(0);
@@ -170,11 +100,16 @@ function Home() {
   const alive = useRef(true);
   const writes = useRef(Promise.resolve());
   const theme = themes[prefs.theme];
-  const themeDef = THEME_LIST.find((item) => item.name === prefs.theme) ?? THEME_LIST[0];
+  const wallpaperTheme = prefs.wallpaperTheme
+    ? themes[prefs.wallpaperTheme]
+    : null;
+  // Semantic text roles keep hierarchy consistent across every settings screen.
+  const headingColor = theme.light ? theme.fg : "#ffffff";
   const onDial = useMemo(
     () => favorites(apps, prefs.favorites),
     [apps, prefs.favorites],
   );
+  const dialPreviewApps = onDial.length ? onDial : PREVIEW_DIAL_APPS;
   const refresh = useCallback(async () => {
     try {
       const list = await loadApps();
@@ -238,6 +173,31 @@ function Home() {
     };
   }, [refresh]);
   useEffect(() => {
+    if (ready)
+      writes.current = writes.current
+        .then(() => savePreferences(prefs))
+        .catch(() =>
+          Alert.alert("Settings not saved", "Try changing the setting again."),
+        );
+  }, [prefs, ready]);
+  const handleSettingsBack = useCallback(() => {
+    if (panel === "settings" && settingsScreen !== "root") {
+      setSettingsScreen("root");
+      setSettingsScrolled(false);
+      return true;
+    }
+    if (panel !== null) {
+      if (panel === "settings") {
+        setSettingsScreen("root");
+        setPrefs((previous) => ({ ...previous, setupDone: true }));
+      }
+      setSettingsScrolled(false);
+      setPanel(null);
+      return true;
+    }
+    return false;
+  }, [panel, settingsScreen]);
+  useEffect(() => {
     const back = BackHandler.addEventListener("hardwareBackPress", () => {
       if (heldApp) {
         setHeldApp(null);
@@ -251,27 +211,16 @@ function Home() {
         setThemeDialMode(false);
         return true;
       }
-      if (panel !== null) {
-        setPanel(null);
-        return true;
-      }
-      return false;
+      return handleSettingsBack();
     });
     return () => back.remove();
-  }, [heldApp, themeDialMode, panel]);
-  useEffect(() => {
-    if (ready)
-      writes.current = writes.current
-        .then(() => savePreferences(prefs))
-        .catch(() =>
-          Alert.alert("Settings not saved", "Try changing the setting again."),
-        );
-  }, [prefs, ready]);
+  }, [handleSettingsBack, heldApp, themeDialMode]);
   const change = <K extends keyof Preferences>(key: K, value: Preferences[K]) =>
-    setPrefs((previous) => ({ ...previous, [key]: value }));
+    setPrefs((previous) => ({ ...previous, [key]: value, setupDone: true }));
   const favorite = (id: string) => {
     setPrefs((previous) => ({
       ...previous,
+      setupDone: true,
       favorites: previous.favorites.includes(id)
         ? previous.favorites.filter((item) => item !== id)
         : [...previous.favorites, id],
@@ -292,6 +241,21 @@ function Home() {
   const menu = (app: InstalledApp) => {
     setHeldApp(app);
   };
+  const openSettings = useCallback(() => {
+    setSettingsScrolled(false);
+    setPanel("settings");
+  }, []);
+  const openLicenses = useCallback(() => {
+    setSettingsScrolled(false);
+    setPanel("licenses");
+  }, []);
+  const changeSettingsScreen = useCallback(
+    (screen: "root" | "wallpaper" | "dial") => {
+      setSettingsScrolled(false);
+      setSettingsScreen(screen);
+    },
+    [],
+  );
   const startThemeDial = () => {
     previousThemeRef.current = prefs.theme;
     const idx = THEME_LIST.findIndex((t) => t.name === prefs.theme);
@@ -307,7 +271,7 @@ function Home() {
       setPrefs((previous) =>
         previous.theme === themeDef.name
           ? previous
-          : { ...previous, theme: themeDef.name },
+          : { ...previous, theme: themeDef.name, setupDone: true },
       );
     }
   }, []);
@@ -349,11 +313,22 @@ function Home() {
       if (alive.current) setWallpaperBusy(false);
     }
   };
+  const handleSettingsScroll = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const nextScrolled = event.nativeEvent.contentOffset.y > 0;
+      setSettingsScrolled((previous) =>
+        previous === nextScrolled ? previous : nextScrolled,
+      );
+    },
+    [],
+  );
+
   return (
     <View style={[styles.screen, { backgroundColor: theme.bg }]}>
       <StatusBar hidden={!prefs.statusBar} style={theme.light ? "dark" : "light"} />
       <ThemeBackdrop
         theme={theme}
+        wallpaperTheme={wallpaperTheme}
         left={prefs.left}
         customWallpaper={
           prefs.customWallpaper ? wallpaperUri(prefs.customWallpaper) : null
@@ -385,7 +360,7 @@ function Home() {
               setLoading(true);
               void refresh();
             }}
-            backgroundColor={theme.panel}
+            backgroundColor={SURFACES.elevated}
             accentColor={theme.accent}
           />
         </View>
@@ -411,6 +386,7 @@ function Home() {
             theme={theme}
             themeDef={THEME_LIST[previewThemeIndex] ?? THEME_LIST[0]}
             left={prefs.left}
+            statusBarVisible={prefs.statusBar}
             scale={k}
             insets={insets}
             onJumpGroup={handleJumpGroup}
@@ -430,14 +406,18 @@ function Home() {
               void open(app);
             }}
             onMenu={menu}
-            onSettings={() => setPanel("settings")}
+            onSettings={openSettings}
             onScrubChange={setScrubbing}
             onTick={() => tick(prefs.sound, prefs.haptics)}
           />
           <HomeClock
             now={now}
             scale={k}
-            top={Math.max(84 * k, insets.top + 44 * k)}
+            top={
+              prefs.statusBar
+                ? Math.max(84 * k, insets.top + 44 * k)
+                : 28 * k
+            }
             width={width - 56 * k}
             left={prefs.left}
             scrubbing={scrubbing}
@@ -450,7 +430,7 @@ function Home() {
                 );
               });
             }}
-            onSettings={() => setPanel("settings")}
+            onSettings={openSettings}
           />
           {!scrubbing && (
             <Pressable
@@ -499,7 +479,7 @@ function Home() {
               <Text
                 style={{
                   color: theme.fg,
-                  fontSize: 13 * k,
+                  fontSize: Number(TYPOGRAPHY.utility.fontSize) * k,
                   fontFamily: fontsLoaded ? "JetBrainsMono" : "monospace",
                 }}
               >
@@ -535,6 +515,7 @@ function Home() {
         apps={apps}
         favorites={prefs.favorites}
         theme={theme}
+        statusBarVisible={prefs.statusBar}
         onClose={() => setPanel(null)}
         onLaunch={(app) => {
           setPanel(null);
@@ -543,185 +524,62 @@ function Home() {
         onToggleFavorite={favorite}
       />
 
-      <Modal
+      <SettingsPanel
         visible={panel === "settings" || panel === "licenses"}
-        animationType="slide"
-        onRequestClose={() => setPanel(null)}
-      >
-        <SafeAreaView style={[styles.screen, { backgroundColor: theme.bg }]}>
-          <View style={[styles.header, { borderColor: `${theme.muted2}55` }]}>
-            <Text style={[styles.title, { color: theme.fg }]}>
-              {panel === "licenses" ? "Licenses" : "Settings"}
-            </Text>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => {
-                change("setupDone", true);
-                setPanel(null);
-              }}
-              style={styles.touch}
-            >
-              <Text style={{ color: theme.accent }}>Done</Text>
-            </Pressable>
-          </View>
-          {panel === "licenses" ? (
-            <ScrollView contentContainerStyle={styles.settings}>
-              {Object.entries(notices).map(([name, text]) => (
-                <View key={name}>
-                  <Text style={[styles.title, { color: theme.accent }]}>
-                    {name}
-                  </Text>
-                  <Text
-                    selectable
-                    style={{
-                      color: theme.fg,
-                      fontSize: 12,
-                      lineHeight: 19,
-                      marginVertical: 16,
-                    }}
-                  >
-                    {text}
-                  </Text>
-                </View>
-              ))}
-            </ScrollView>
-          ) : (
-            <ScrollView contentContainerStyle={styles.settings}>
-              <Text style={[styles.note, { color: theme.muted }]}>
-                A quiet home. Turn the dial. Find your focus.
-              </Text>
-              <SectionHeader label="Appearance" color={theme.muted} />
-              <View style={[styles.appearanceCard, { backgroundColor: theme.panel, borderColor: theme.muted2 }]}>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`Theme ${prefs.theme}`}
-                  onPress={() => setExpandedAppearance((value) => value === "theme" ? null : "theme")}
-                  style={styles.appearanceCardHeader}
-                >
-                  <View>
-                    <Text style={[styles.cardLabel, { color: theme.muted }]}>Theme</Text>
-                    <Text style={[styles.cardValue, { color: theme.fg }]}>{prefs.theme}</Text>
-                    <Text style={[styles.cardMeta, { color: theme.muted }]}>{themeDef.group} · {theme.light ? "light" : "dark"}</Text>
-                  </View>
-                  <Text style={[styles.cardChevron, { color: theme.accent }]}>{expandedAppearance === "theme" ? "−" : "＋"}</Text>
-                </Pressable>
-                <View style={[styles.themeMiniPreview, { backgroundColor: theme.bg }]}>
-                  <Text style={[styles.themeMiniClock, { color: theme.fg }]}>10:04</Text>
-                  <Text style={[styles.themeMiniDate, { color: theme.muted2 }]}>sun 18</Text>
-                  <View style={styles.themeMiniDial}>
-                    <Text style={[styles.themeMiniApp, { color: theme.accent }]}>Gmail</Text>
-                    <View style={[styles.themeMiniNotch, { backgroundColor: theme.accent }]} />
-                  </View>
-                </View>
-                {expandedAppearance === "theme" && (
-                  <View style={styles.appearanceCardExpanded}>
-                    <SettingButton label="Choose theme with dial" onPress={startThemeDial} backgroundColor={theme.bg} accentColor={theme.accent} />
-                    <WallpaperCard uri={prefs.customWallpaper ? wallpaperUri(prefs.customWallpaper) : null} busy={wallpaperBusy} disabled={wallpaperBusy || !ready} onPress={() => void chooseWallpaper()} backgroundColor={theme.bg} accentColor={theme.accent} />
-                    {prefs.customWallpaper && <SettingButton label="Use theme wallpaper" onPress={() => change("customWallpaper", null)} disabled={wallpaperBusy} backgroundColor={theme.bg} accentColor={theme.accent} />}
-                  </View>
-                )}
-              </View>
-              <View style={[styles.appearanceCard, { backgroundColor: theme.panel, borderColor: theme.muted2 }]}>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`Dial layout ${layouts[prefs.layout].name}`}
-                  onPress={() => setExpandedAppearance((value) => value === "dial" ? null : "dial")}
-                  style={styles.appearanceCardHeader}
-                >
-                  <View>
-                    <Text style={[styles.cardLabel, { color: theme.muted }]}>Dial layout</Text>
-                    <Text style={[styles.cardValue, { color: theme.fg }]}>{layouts[prefs.layout].name}</Text>
-                  </View>
-                  <Text style={[styles.cardChevron, { color: theme.accent }]}>{expandedAppearance === "dial" ? "−" : "＋"}</Text>
-                </Pressable>
-                <View style={[styles.dialMiniPreview, { backgroundColor: theme.bg }]}>
-                  <Text style={[styles.dialMiniLabel, { color: theme.muted }]}>Chrome</Text>
-                  <Text style={[styles.dialMiniLabel, { color: theme.fg }]}>Clock</Text>
-                  <Text style={[styles.dialMiniSelected, { color: theme.accent }]}>Gmail</Text>
-                  <Text style={[styles.dialMiniLabel, { color: theme.muted }]}>Files</Text>
-                  <View style={[styles.dialMiniTrack, { borderColor: theme.muted2 }]} />
-                  <View style={[styles.dialMiniDot, { backgroundColor: theme.accent }]} />
-                </View>
-                {expandedAppearance === "dial" && <View style={styles.appearanceCardExpanded}>{layouts.map((layout, index) => <Pressable key={layout.name} accessibilityRole="radio" accessibilityState={{ checked: prefs.layout === index }} onPress={() => change("layout", index)} style={styles.setting}><Text style={{ color: prefs.layout === index ? theme.accent : theme.fg }}>{prefs.layout === index ? "● " : "○ "}{layout.name}</Text></Pressable>)}</View>}
-              </View>
-              <SectionHeader label="Dial" color={theme.muted} />
-              {(["left", "dots", "sound", "haptics"] as const).map(
-                (key) => (
-                  <View style={styles.setting} key={key}>
-                    <Text style={{ color: theme.fg }}>
-                      {key === "left"
-                        ? "Dial on the left"
-                        : key === "dots"
-                            ? "Notification dots"
-                            : key === "sound"
-                              ? "Dial sound"
-                              : "Haptics"}
-                    </Text>
-                    <Switch
-                      accessibilityLabel={key}
-                      value={prefs[key]}
-                      onValueChange={(value) => change(key, value)}
-                    />
-                  </View>
-                ),
-              )}
-              <SettingButton
-                label="Choose apps for your dial"
-                onPress={() => {
-                  setPanel("search");
-                }}
-                backgroundColor={theme.panel}
-                accentColor={theme.accent}
-              />
-              <Text style={[styles.note, { color: theme.muted }]}>Add your favorite apps from search to fill the dial.</Text>
-              <Text style={[styles.note, { color: theme.muted }]}>Sound follows your phone’s ringer mode. System touch sounds can stay off.</Text>
-              <SectionHeader label="System" color={theme.muted} />
-              <View style={styles.setting}>
-                <Text style={{ color: theme.fg }}>Status bar</Text>
-                <Switch
-                  accessibilityLabel="Status bar"
-                  value={prefs.statusBar}
-                  onValueChange={(value) => change("statusBar", value)}
-                />
-              </View>
-              <SettingButton
-                label="Manage app notifications"
-                onPress={() => {
-                  void openNotificationSettings().catch(() =>
-                    Alert.alert(
-                      "Notifications",
-                      "Open Android Settings → Notifications to manage per-app switches.",
-                    ),
-                  );
-                }}
-                backgroundColor={theme.panel}
-                accentColor={theme.accent}
-              />
-              <SettingButton
-                label="Set Iris as your home app"
-                onPress={() => {
-                  void setHome().catch(() =>
-                    Alert.alert(
-                      "Choose Iris",
-                      "Open Android Settings → Apps → Default apps → Home app.",
-                    ),
-                  );
-                }}
-                backgroundColor={theme.panel}
-                accentColor={theme.accent}
-              />
-              <Text style={[styles.note, { color: theme.muted }]}>To switch back later: Android Settings → Apps → Default apps → Home app.</Text>
-              <SectionHeader label="About" color={theme.muted} />
-              <SettingButton
-                label="Open-source licenses"
-                onPress={() => setPanel("licenses")}
-                backgroundColor={theme.panel}
-                accentColor={theme.accent}
-              />
-            </ScrollView>
-          )}
-        </SafeAreaView>
-      </Modal>
+        panel={panel === "licenses" ? "licenses" : "settings"}
+        settingsScreen={settingsScreen}
+        theme={theme}
+        headingColor={headingColor}
+        prefs={prefs}
+        wallpaperTheme={prefs.wallpaperTheme}
+        dialPreviewApps={dialPreviewApps}
+        customWallpaperUri={
+          prefs.customWallpaper ? wallpaperUri(prefs.customWallpaper) : null
+        }
+        wallpaperBusy={wallpaperBusy}
+        ready={ready}
+        settingsScrolled={settingsScrolled}
+        onRequestClose={() => {
+          handleSettingsBack();
+        }}
+        onBack={() => setSettingsScreen("root")}
+        onScroll={handleSettingsScroll}
+        onSettingsScreenChange={changeSettingsScreen}
+        onStatusBarChange={(value) => change("statusBar", value)}
+        onOpenNotifications={() => {
+          void openNotificationSettings().catch(() =>
+            Alert.alert(
+              "Notifications",
+              "Open Android Settings → Notifications to manage per-app switches.",
+            ),
+          );
+        }}
+        onSetHome={() => {
+          void setHome().catch(() =>
+            Alert.alert(
+              "Choose Iris",
+              "Open Android Settings → Apps → Default apps → Home app.",
+            ),
+          );
+        }}
+        onOpenLicenses={openLicenses}
+        onStartThemeDial={startThemeDial}
+        onChooseWallpaper={() => void chooseWallpaper()}
+        onSelectThemeWallpaper={(themeName: ThemeName) =>
+          setPrefs((previous) => ({
+            ...previous,
+            wallpaperTheme: themeName,
+            customWallpaper: null,
+            setupDone: true,
+          }))
+        }
+        onLayoutChange={(index) => change("layout", index)}
+        onLeftChange={(value) => change("left", value)}
+        onDotsChange={(value) => change("dots", value)}
+        onSoundChange={(value) => change("sound", value)}
+        onHapticsChange={(value) => change("haptics", value)}
+        onChooseApps={() => setPanel("search")}
+      />
     </View>
   );
 }
@@ -736,22 +594,6 @@ export default function App() {
 }
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  header: {
-    minHeight: 88,
-    paddingHorizontal: 24,
-    paddingTop: 16,
-    paddingBottom: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    borderBottomWidth: 1,
-  },
-  touch: {
-    minWidth: 48,
-    minHeight: 48,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   center: {
     position: "absolute",
     top: 0,
@@ -768,140 +610,5 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     flexDirection: "row",
     alignItems: "center",
-  },
-  eyebrow: { fontSize: 10, letterSpacing: 3, marginBottom: 16 },
-  button: { padding: 20, borderRadius: 16, marginBottom: 12 },
-  title: { fontSize: 25, fontWeight: "300" },
-  input: { margin: 24, padding: 16, borderRadius: 14, fontSize: 16 },
-  note: {
-    fontSize: 13,
-    lineHeight: 21,
-    marginBottom: 20,
-    marginHorizontal: 24,
-  },
-  row: { flexDirection: "row", alignItems: "center", paddingHorizontal: 24 },
-  app: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 16,
-    paddingVertical: 12,
-  },
-  icon: { width: 40, height: 40, borderRadius: 10 },
-  settings: { padding: 24 },
-  sectionHeader: {
-    minHeight: 44,
-    marginHorizontal: -24,
-    paddingHorizontal: 24,
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    justifyContent: "center",
-    marginTop: 18,
-    marginBottom: 16,
-  },
-  sectionHeaderText: {
-    fontSize: 11,
-    letterSpacing: 2.5,
-  },
-  appearanceCard: {
-    borderWidth: 1,
-    borderRadius: 18,
-    marginBottom: 16,
-    overflow: "hidden",
-  },
-  appearanceCardHeader: {
-    minHeight: 76,
-    paddingHorizontal: 18,
-    paddingVertical: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  appearanceCardExpanded: {
-    paddingHorizontal: 16,
-    paddingBottom: 4,
-  },
-  cardLabel: { fontSize: 11, letterSpacing: 2 },
-  cardValue: { fontSize: 18, marginTop: 5 },
-  cardMeta: { fontSize: 11, marginTop: 5, letterSpacing: 0.4 },
-  cardChevron: { fontSize: 22, fontWeight: "300" },
-  themeMiniPreview: {
-    minHeight: 152,
-    marginHorizontal: 16,
-    marginBottom: 16,
-    borderRadius: 12,
-    overflow: "hidden",
-    padding: 16,
-  },
-  themeMiniClock: { fontSize: 30, fontWeight: "300" },
-  themeMiniDate: { fontSize: 11, marginTop: 6 },
-  themeMiniDial: {
-    position: "absolute",
-    right: 20,
-    top: 34,
-    bottom: 24,
-    justifyContent: "center",
-    alignItems: "flex-end",
-    gap: 8,
-  },
-  themeMiniApp: { fontSize: 14 },
-  themeMiniNotch: { width: 9, height: 9, borderRadius: 9 },
-  dialMiniPreview: {
-    minHeight: 152,
-    marginHorizontal: 16,
-    marginBottom: 16,
-    borderRadius: 12,
-    overflow: "hidden",
-    alignItems: "flex-end",
-    justifyContent: "center",
-    paddingRight: 42,
-    gap: 7,
-  },
-  dialMiniLabel: { fontSize: 14 },
-  dialMiniSelected: { fontSize: 15, fontWeight: "600" },
-  dialMiniTrack: {
-    position: "absolute",
-    right: 19,
-    top: 22,
-    bottom: 22,
-    width: 1,
-    borderLeftWidth: 1,
-  },
-  dialMiniDot: {
-    position: "absolute",
-    right: 15,
-    top: "50%",
-    width: 9,
-    height: 9,
-    borderRadius: 9,
-  },
-  wallpaperCard: {
-    minHeight: 180,
-    borderRadius: 18,
-    marginBottom: 16,
-    overflow: "hidden",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  wallpaperCardShade: {
-    ...StyleSheet.absoluteFill,
-    backgroundColor: "rgba(0, 0, 0, 0.32)",
-  },
-  wallpaperCardText: {
-    fontSize: 14,
-    fontWeight: "600",
-    letterSpacing: 0.2,
-  },
-  themeHeaderRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 16,
-  },
-  setting: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 16,
   },
 });

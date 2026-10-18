@@ -2,6 +2,7 @@
 import { Skia, PaintStyle, type SkFont } from "@shopify/react-native-skia";
 import {
   DESIGN,
+  DEFAULT_LAYOUT_INDEX,
   layouts,
   geometry,
   distance,
@@ -25,7 +26,7 @@ export function drawDial(
   kick: number,
 ) {
   "worklet";
-  const layout = layouts[layoutIndex] ?? layouts[0];
+  const layout = layouts[layoutIndex] ?? layouts[DEFAULT_LAYOUT_INDEX];
   const g = geometry(width, height, layout.radius),
     r = layout.radius;
   const recorder = Skia.PictureRecorder();

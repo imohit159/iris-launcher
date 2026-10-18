@@ -16,6 +16,7 @@ export const layouts = [
   { name: "flat · radial · dots", radius: 560, markers: "dots", ticks: 6 },
   { name: "flat · radial · nodes", radius: 560, markers: "nodes", ticks: 4 },
 ] as const;
+export const DEFAULT_LAYOUT_INDEX = 0;
 export function mod(value: number, count: number) {
   "worklet";
   return count > 0 ? ((value % count) + count) % count : 0;

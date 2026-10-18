@@ -1,4 +1,4 @@
-import { layouts } from "./dial/reference";
+import { DEFAULT_LAYOUT_INDEX, layouts } from "./dial/reference";
 import { isWallpaperName } from "./wallpaper/model";
 import { restoreWallpaper } from "./wallpaper/storage";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -13,6 +13,7 @@ export {
 } from "./themes/catalog";
 export type Preferences = {
   theme: keyof typeof themes;
+  wallpaperTheme: keyof typeof themes | null;
   customWallpaper: string | null;
   layout: number;
   left: boolean;
@@ -25,8 +26,9 @@ export type Preferences = {
 };
 export const defaults: Preferences = {
   theme: "dusk",
+  wallpaperTheme: null,
   customWallpaper: null,
-  layout: 0,
+  layout: DEFAULT_LAYOUT_INDEX,
   left: false,
   sound: true,
   haptics: true,
@@ -38,7 +40,12 @@ export const defaults: Preferences = {
 const key = "iris.expo.preferences.v1";
 export function parsePreferences(raw: string | null): Preferences {
   if (!raw) return defaults;
-  const value: unknown = JSON.parse(raw);
+  let value: unknown;
+  try {
+    value = JSON.parse(raw);
+  } catch {
+    return defaults;
+  }
   if (!value || typeof value !== "object") return defaults;
   const saved = value as Record<string, unknown>;
   return {
@@ -46,6 +53,11 @@ export function parsePreferences(raw: string | null): Preferences {
       typeof saved.theme === "string" && Object.hasOwn(themes, saved.theme)
         ? (saved.theme as Preferences["theme"])
         : "dusk",
+    wallpaperTheme:
+      typeof saved.wallpaperTheme === "string" &&
+      Object.hasOwn(themes, saved.wallpaperTheme)
+        ? (saved.wallpaperTheme as Preferences["wallpaperTheme"])
+        : null,
     customWallpaper: isWallpaperName(saved.customWallpaper)
       ? saved.customWallpaper
       : null,
@@ -55,7 +67,7 @@ export function parsePreferences(raw: string | null): Preferences {
       saved.layout >= 0 &&
       saved.layout < layouts.length
         ? saved.layout
-        : 0,
+        : DEFAULT_LAYOUT_INDEX,
     left: saved.left === true,
     sound: saved.sound !== false,
     haptics: saved.haptics !== false,
@@ -69,10 +81,14 @@ export function parsePreferences(raw: string | null): Preferences {
 }
 export const readPreferences = async () => {
   const prefs = parsePreferences(await AsyncStorage.getItem(key));
-  return {
-    ...prefs,
-    customWallpaper: await restoreWallpaper(prefs.customWallpaper),
-  };
+  try {
+    return {
+      ...prefs,
+      customWallpaper: await restoreWallpaper(prefs.customWallpaper),
+    };
+  } catch {
+    return { ...prefs, customWallpaper: null };
+  }
 };
 export const savePreferences = (prefs: Preferences) =>
   AsyncStorage.setItem(key, JSON.stringify(prefs));

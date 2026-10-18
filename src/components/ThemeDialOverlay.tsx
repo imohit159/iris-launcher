@@ -1,10 +1,12 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { Theme, ThemeDef } from "../preferences";
+import { SURFACES, TYPOGRAPHY } from "../design/tokens";
 
 type Props = {
   theme: Theme;
   themeDef: ThemeDef;
   left: boolean;
+  statusBarVisible: boolean;
   scale: number;
   insets: { top: number; bottom: number };
   onJumpGroup(group: "phone" | "omarchy"): void;
@@ -16,13 +18,16 @@ export function ThemeDialOverlay({
   theme,
   themeDef,
   left,
+  statusBarVisible,
   scale,
   insets,
   onJumpGroup,
   onCancel,
   onDone,
 }: Props) {
-  const topY = Math.max(84 * scale, insets.top + 28 * scale);
+  const topY = statusBarVisible
+    ? Math.max(84 * scale, insets.top + 28 * scale)
+    : 28 * scale;
   const bottomControlsY = Math.max(
     140,
     insets.bottom + 64 * scale,
@@ -83,14 +88,14 @@ export function ThemeDialOverlay({
               styles.chip,
               themeDef.group === "phone"
                 ? { backgroundColor: theme.accent, borderColor: theme.accent }
-                : { backgroundColor: "transparent", borderColor: theme.panel },
+                : { backgroundColor: "transparent", borderColor: SURFACES.secondary },
             ]}
           >
             <Text
               style={[
                 styles.chipText,
                 themeDef.group === "phone"
-                  ? { color: theme.light ? "#ffffff" : "#000000", fontWeight: "600" }
+                  ? { color: theme.light ? "#ffffff" : "#000000" }
                   : { color: theme.muted2 },
               ]}
             >
@@ -106,14 +111,14 @@ export function ThemeDialOverlay({
               styles.chip,
               themeDef.group === "omarchy"
                 ? { backgroundColor: theme.accent, borderColor: theme.accent }
-                : { backgroundColor: "transparent", borderColor: theme.panel },
+                : { backgroundColor: "transparent", borderColor: SURFACES.secondary },
             ]}
           >
             <Text
               style={[
                 styles.chipText,
                 themeDef.group === "omarchy"
-                  ? { color: theme.light ? "#ffffff" : "#000000", fontWeight: "600" }
+                  ? { color: theme.light ? "#ffffff" : "#000000" }
                   : { color: theme.muted2 },
               ]}
             >
@@ -189,19 +194,16 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   counter: {
-    fontSize: 11,
+    ...TYPOGRAPHY.meta,
     letterSpacing: 1,
     fontFamily: "JetBrainsMono",
   },
   title: {
-    fontSize: 52,
-    fontWeight: "300",
-    letterSpacing: -1.5,
-    lineHeight: 56,
+    ...TYPOGRAPHY.display,
     fontFamily: "JetBrainsMono",
   },
   body: {
-    fontSize: 13,
+    ...TYPOGRAPHY.body,
     lineHeight: 20,
     fontFamily: "JetBrainsMono",
   },
@@ -224,11 +226,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   chipText: {
-    fontSize: 12,
+    ...TYPOGRAPHY.badge,
     fontFamily: "JetBrainsMono",
   },
   infoText: {
-    fontSize: 12,
+    ...TYPOGRAPHY.badge,
     letterSpacing: 0.3,
     fontFamily: "JetBrainsMono",
     marginTop: 2,
@@ -248,7 +250,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   cancelText: {
-    fontSize: 13,
+    ...TYPOGRAPHY.utility,
     fontFamily: "JetBrainsMono",
   },
   doneButton: {
@@ -260,12 +262,12 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   doneText: {
-    fontSize: 13,
+    ...TYPOGRAPHY.button,
     fontWeight: "600",
     fontFamily: "JetBrainsMono",
   },
   doneArrow: {
-    fontSize: 14,
+    ...TYPOGRAPHY.button,
     fontWeight: "600",
   },
 });

@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { StyleSheet, useWindowDimensions } from "react-native";
 import {
   Canvas,
@@ -17,24 +17,30 @@ import { artwork } from "../themes/assets";
 
 export function ThemeBackdrop({
   theme,
+  wallpaperTheme,
   left,
   customWallpaper,
   onWallpaperError,
 }: {
   theme: Theme;
+  wallpaperTheme?: Theme | null;
   left: boolean;
   customWallpaper: string | null;
   onWallpaperError(): void;
 }) {
   const { width, height } = useWindowDimensions();
+  const visualTheme = wallpaperTheme ?? theme;
+  const visualWall = left && visualTheme.wallLeft ? visualTheme.wallLeft : visualTheme.wall;
   const wall =
-    customWallpaper ?? (left && theme.wallLeft ? theme.wallLeft : theme.wall);
-  const builtin = useImage(
-    artwork[(left && theme.wallLeft ? theme.wallLeft : theme.wall) ?? "hands"],
-  );
+    customWallpaper ?? visualWall;
+  const builtin = useImage(artwork[visualWall ?? "hands"]);
   const [customImage, setCustomImage] = useState<SkImage | null>(null);
+  const [loadedWallpaper, setLoadedWallpaper] = useState<string | null>(null);
+  const customImageRef = useRef<SkImage | null>(null);
   const reportError = useEffectEvent(onWallpaperError);
   useEffect(() => {
+    customImageRef.current?.dispose();
+    customImageRef.current = null;
     if (!customWallpaper) return;
     let cancelled = false;
     void Skia.Data.fromURI(customWallpaper)
@@ -42,7 +48,11 @@ export function ThemeBackdrop({
         const decoded = Skia.Image.MakeImageFromEncoded(data);
         if (!decoded) throw new Error("Cannot decode wallpaper");
         if (cancelled) decoded.dispose();
-        else setCustomImage(decoded);
+        else {
+          customImageRef.current = decoded;
+          setCustomImage(decoded);
+          setLoadedWallpaper(customWallpaper);
+        }
       })
       .catch(() => {
         if (!cancelled) reportError();
@@ -51,7 +61,17 @@ export function ThemeBackdrop({
       cancelled = true;
     };
   }, [customWallpaper]);
-  const image = customWallpaper ? (customImage ?? builtin) : builtin;
+  useEffect(
+    () => () => {
+      customImageRef.current?.dispose();
+      customImageRef.current = null;
+    },
+    [],
+  );
+  const image =
+    customWallpaper && loadedWallpaper === customWallpaper
+      ? customImage
+      : builtin;
   const rgb = (color: string) =>
     [1, 3, 5].map((i) => parseInt(color.slice(i, i + 2), 16) / 255);
   const bg = rgb(theme.bg),

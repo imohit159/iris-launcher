@@ -12,12 +12,14 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { App } from "../launcher/catalog";
 import { search } from "../launcher/catalog";
 import type { Theme } from "../preferences";
+import { SPACING, SURFACES, TYPOGRAPHY } from "../design/tokens";
 
 type Props = {
   visible: boolean;
   apps: App[];
   favorites: string[];
   theme: Theme;
+  statusBarVisible: boolean;
   onClose(): void;
   onLaunch(app: App): void;
   onToggleFavorite(packageName: string): void;
@@ -28,6 +30,7 @@ export function SearchSheet({
   apps,
   favorites,
   theme,
+  statusBarVisible,
   onClose,
   onLaunch,
   onToggleFavorite,
@@ -63,8 +66,10 @@ export function SearchSheet({
         style={[
           styles.container,
           {
-            backgroundColor: theme.bg,
-            paddingTop: Math.max(50, insets.top + 16),
+            backgroundColor: SURFACES.screen,
+            paddingTop: statusBarVisible
+              ? Math.max(50, insets.top + 16)
+              : SPACING.screen,
           },
         ]}
       >
@@ -73,7 +78,7 @@ export function SearchSheet({
           <View
             style={[
               styles.inputWrapper,
-              { borderBottomColor: theme.panel },
+              { borderBottomColor: SURFACES.secondary },
             ]}
           >
             <TextInput
@@ -129,7 +134,7 @@ export function SearchSheet({
               <View
                 style={[
                   styles.resultRow,
-                  isTopMatch && { backgroundColor: theme.panel },
+                  isTopMatch && { backgroundColor: SURFACES.elevated },
                 ]}
               >
                 <Pressable
@@ -159,7 +164,7 @@ export function SearchSheet({
                     onPress={() => onToggleFavorite(item.packageName)}
                     style={[
                       styles.addPill,
-                      { borderColor: theme.muted2 },
+                      { borderColor: SURFACES.secondary },
                     ]}
                   >
                     <Text style={[styles.addText, { color: theme.fg }]}>
@@ -194,9 +199,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   input: {
-    fontSize: 26,
-    fontWeight: "300",
-    letterSpacing: -0.6,
+    ...TYPOGRAPHY.searchInput,
     fontFamily: "JetBrainsMono",
     padding: 0,
     margin: 0,
@@ -208,13 +211,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   cancelText: {
-    fontSize: 13,
-    letterSpacing: 0.2,
+    ...TYPOGRAPHY.utility,
     fontFamily: "JetBrainsMono",
   },
   countHeader: {
-    fontSize: 11,
-    letterSpacing: 0.6,
+    ...TYPOGRAPHY.meta,
     paddingHorizontal: 28,
     paddingTop: 16,
     paddingBottom: 8,
@@ -237,7 +238,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   appLabel: {
-    fontSize: 16,
+    ...TYPOGRAPHY.option,
     fontFamily: "JetBrainsMono",
   },
   onDialBadge: {
@@ -245,7 +246,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   onDialText: {
-    fontSize: 11,
+    ...TYPOGRAPHY.meta,
     letterSpacing: 0.4,
     fontFamily: "JetBrainsMono",
   },
@@ -258,11 +259,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   addText: {
-    fontSize: 11,
+    ...TYPOGRAPHY.badge,
     fontFamily: "JetBrainsMono",
   },
   emptyText: {
-    fontSize: 13,
+    ...TYPOGRAPHY.body,
     fontFamily: "JetBrainsMono",
     paddingHorizontal: 28,
     paddingTop: 16,

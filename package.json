@@ -1,8 +1,9 @@
 {
   "name": "iris-launcher",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "main": "index.ts",
   "dependencies": {
+    "@expo/vector-icons": "^15.1.1",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@shopify/react-native-skia": "2.6.2",
     "expo": "~57.0.30",
@@ -36,7 +37,7 @@
     "android": "expo run:android --variant debugOptimized",
     "prebuild": "expo prebuild --platform android",
     "typecheck": "tsc --noEmit",
-    "lint": "expo lint",
+    "lint": "eslint . --no-cache",
     "test": "node --experimental-strip-types --test tests/*.test.ts",
     "check": "pnpm typecheck && pnpm lint && pnpm test"
   },
