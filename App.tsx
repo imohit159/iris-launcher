@@ -132,6 +132,14 @@ function WallpaperCard({
   );
 }
 
+function SectionHeader({ label, color }: { label: string; color: string }) {
+  return (
+    <View style={[styles.sectionHeader, { borderColor: `${color}55` }]}>
+      <Text style={[styles.sectionHeaderText, { color }]}>{label}</Text>
+    </View>
+  );
+}
+
 function Home() {
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -541,9 +549,9 @@ function Home() {
         onRequestClose={() => setPanel(null)}
       >
         <SafeAreaView style={[styles.screen, { backgroundColor: theme.bg }]}>
-          <View style={styles.header}>
+          <View style={[styles.header, { borderColor: `${theme.muted2}55` }]}>
             <Text style={[styles.title, { color: theme.fg }]}>
-              {panel === "licenses" ? "licenses" : "make it yours"}
+              {panel === "licenses" ? "Licenses" : "Settings"}
             </Text>
             <Pressable
               accessibilityRole="button"
@@ -582,7 +590,7 @@ function Home() {
               <Text style={[styles.note, { color: theme.muted }]}>
                 A quiet home. Turn the dial. Find your focus.
               </Text>
-              <Text style={[styles.sectionTitle, { color: theme.muted }]}>APPEARANCE</Text>
+              <SectionHeader label="Appearance" color={theme.muted} />
               <View style={[styles.appearanceCard, { backgroundColor: theme.panel, borderColor: theme.muted2 }]}>
                 <Pressable
                   accessibilityRole="button"
@@ -636,7 +644,7 @@ function Home() {
                 </View>
                 {expandedAppearance === "dial" && <View style={styles.appearanceCardExpanded}>{layouts.map((layout, index) => <Pressable key={layout.name} accessibilityRole="radio" accessibilityState={{ checked: prefs.layout === index }} onPress={() => change("layout", index)} style={styles.setting}><Text style={{ color: prefs.layout === index ? theme.accent : theme.fg }}>{prefs.layout === index ? "● " : "○ "}{layout.name}</Text></Pressable>)}</View>}
               </View>
-              <Text style={[styles.sectionTitle, { color: theme.muted }]}>DIAL</Text>
+              <SectionHeader label="Dial" color={theme.muted} />
               {(["left", "dots", "sound", "haptics"] as const).map(
                 (key) => (
                   <View style={styles.setting} key={key}>
@@ -667,7 +675,7 @@ function Home() {
               />
               <Text style={[styles.note, { color: theme.muted }]}>Add your favorite apps from search to fill the dial.</Text>
               <Text style={[styles.note, { color: theme.muted }]}>Sound follows your phone’s ringer mode. System touch sounds can stay off.</Text>
-              <Text style={[styles.sectionTitle, { color: theme.muted }]}>SYSTEM</Text>
+              <SectionHeader label="System" color={theme.muted} />
               <View style={styles.setting}>
                 <Text style={{ color: theme.fg }}>Status bar</Text>
                 <Switch
@@ -703,7 +711,7 @@ function Home() {
                 accentColor={theme.accent}
               />
               <Text style={[styles.note, { color: theme.muted }]}>To switch back later: Android Settings → Apps → Default apps → Home app.</Text>
-              <Text style={[styles.sectionTitle, { color: theme.muted }]}>ABOUT</Text>
+              <SectionHeader label="About" color={theme.muted} />
               <SettingButton
                 label="Open-source licenses"
                 onPress={() => setPanel("licenses")}
@@ -729,11 +737,14 @@ export default function App() {
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   header: {
+    minHeight: 88,
     paddingHorizontal: 24,
-    paddingTop: 8,
+    paddingTop: 16,
+    paddingBottom: 16,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    borderBottomWidth: 1,
   },
   touch: {
     minWidth: 48,
@@ -778,11 +789,19 @@ const styles = StyleSheet.create({
   },
   icon: { width: 40, height: 40, borderRadius: 10 },
   settings: { padding: 24 },
-  sectionTitle: {
-    fontSize: 10,
-    letterSpacing: 3,
+  sectionHeader: {
+    minHeight: 44,
+    marginHorizontal: -24,
+    paddingHorizontal: 24,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    justifyContent: "center",
     marginTop: 18,
     marginBottom: 16,
+  },
+  sectionHeaderText: {
+    fontSize: 11,
+    letterSpacing: 2.5,
   },
   appearanceCard: {
     borderWidth: 1,
