@@ -26,7 +26,6 @@ import { wallpaperUri } from "./src/wallpaper/storage";
 import { HomeClock } from "./src/components/HomeClock";
 import { ThemeBackdrop } from "./src/components/ThemeBackdrop";
 import { Dial } from "./src/components/Dial";
-import { ThemeCards } from "./src/components/ThemeCards";
 import { SearchSheet } from "./src/components/SearchSheet";
 import { QuickMenu } from "./src/components/QuickMenu";
 import { ThemeDialOverlay } from "./src/components/ThemeDialOverlay";
@@ -581,12 +580,12 @@ function Home() {
                 </Text>
                 <Text
                   style={{
-                    fontSize: 11,
-                    color: theme.muted,
-                    letterSpacing: 0.5,
+                    color: theme.fg,
+                    fontSize: 13,
+                    letterSpacing: 0.4,
                   }}
                 >
-                  Turn dial or slide · 27 themes
+                  {prefs.theme}
                 </Text>
               </View>
               <SettingButton
@@ -595,17 +594,10 @@ function Home() {
                 backgroundColor={theme.panel}
                 accentColor={theme.accent}
               />
-              <View style={styles.themeCarouselWrapper}>
-                <ThemeCards
-                  selectedTheme={prefs.theme}
-                  onSelectTheme={(name) => {
-                    tick(prefs.sound, prefs.haptics);
-                    change("theme", name);
-                  }}
-                  currentTheme={theme}
-                  left={prefs.left}
-                />
-              </View>
+              <Text style={[styles.note, { color: theme.muted }]}>
+                Turn the dial to preview all 27 themes. Press done to keep the
+                theme under the notch.
+              </Text>
               <Text style={[styles.eyebrow, { color: theme.muted }]}>DIAL</Text>
               {layouts.map((layout, index) => (
                 <Pressable
@@ -767,10 +759,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     marginBottom: 16,
-  },
-  themeCarouselWrapper: {
-    marginHorizontal: -24,
-    marginBottom: 24,
   },
   setting: {
     flexDirection: "row",
