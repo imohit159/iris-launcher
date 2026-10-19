@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.1 — 2026-10-20
+
+- Added a reproducible universal Android release command covering ARMv7, ARM64, x86, and x86_64 instead of the prior ARM64-only artifact.
+- Added release checks for complete native libraries across architectures, 16 KB ELF/ZIP alignment, and APK signature verification.
+- Incremented Android version code to 4 for upgrades from 0.3.0.
+
 ## 0.3.0 — 2026-10-19
 
 - Added categorized settings, shared controls, and a focused home-screen composition.

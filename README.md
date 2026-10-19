@@ -6,6 +6,29 @@ An Android home-screen launcher rebuilt from scratch with Expo and TypeScript, i
 
 Personal ARM64 APK releases use the same Android debug signing certificate as 0.2.0; they are not Play Store production-signed builds. Version 0.3.0 uses Android version code 3. Release preparation passed `pnpm check`, Expo dependency compatibility, all 21 Expo Doctor checks, and ARM64 `assembleRelease` and `assembleDebugOptimized` builds. APK metadata and signing-certificate compatibility with 0.2.0 were verified. No Android device was connected during this release preparation, so installation and interactive behavior were not reverified for this APK.
 
+## Universal Android APK
+
+Build the distributable APK with the checked release command, rather than the ARM64-only development command:
+
+```sh
+source .local-env.sh # or configure JAVA_HOME and ANDROID_HOME on your machine
+pnpm android:release
+```
+
+The command regenerates Android configuration, explicitly builds ARMv7, ARM64, x86 and x86_64 into one APK, and verifies native-library completeness for every architecture, 16 KB native ELF/ZIP alignment, and the APK signature before copying it to `dist/iris-launcher-<version>-universal.apk`. It requires JDK 17, the Android SDK, and `unzip`. Generated APKs stay ignored. Existing personal debug signing remains in use; store signing is separate work.
+
+To check a downloaded APK independently:
+
+```sh
+pnpm android:verify-apk /absolute/path/to/iris-launcher-universal.apk
+```
+
+Universal packaging removes the previous ARM64-only restriction; it does not guarantee installation on every device. The minimum Android version is reported from the built APK. Manufacturer installation policies, available storage, download integrity, and existing installations with another signature still affect installation. Physical-device installation and interactive behavior require device testing.
+
+Verified October 20, 2026: the 0.3.1 universal release build passes all four architecture checks, complete native-library coverage, 16 KB ELF/ZIP alignment, and APK signature verification. APK metadata reports minimum API 24 (Android 7), target API 36, and version code 4. TypeScript, lint, all six test files, Expo dependency compatibility, and all 21 Expo Doctor checks pass. The previous ARM64-only APK is rejected by the new verifier. No Android device was connected, so installation and interactive behavior remain unverified for this build.
+
+The all-architecture `assembleDebugOptimized` build also passes. The universal release retains the same signing certificate as 0.3.0 for upgrade compatibility.
+
 ## Stack
 
 Node 24.22.0 LTS, pnpm 12.9.1, Expo SDK 57, React Native 0.86.3 and JDK 17. Expo SDK 58 currently selects React Native 0.88 / Android SDK 37, which was unavailable from the Android SDK manager on this machine. SDK 57 uses the available SDK 36 and Build Tools 36.0.0, NDK 27.1.12297006, CMake 3.22.1.
