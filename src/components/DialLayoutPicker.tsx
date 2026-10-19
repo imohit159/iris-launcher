@@ -1,11 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import type { Theme } from "../preferences";
 import type { App } from "../launcher/catalog";
 import { layouts } from "../dial/reference";
 import { Dial } from "./Dial";
 import { SectionContainer } from "./Section";
 import { SURFACES, TYPOGRAPHY } from "../design/tokens";
+import { ChoiceChips } from "./ChoiceChips";
 
 type Props = {
   apps: App[];
@@ -24,48 +25,15 @@ export function DialLayoutPicker({
 }: Props) {
   return (
     <View style={styles.section}>
-      <SectionContainer separator={false}>
+      <SectionContainer first separator={false}>
         <Text style={[styles.layoutStyleTitle, { color: theme.muted }]}>Layout style</Text>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.badgeRail}
-          contentContainerStyle={styles.badgeRailContent}
-        >
-          {layouts.map((item, index) => {
-            const selected = layout === index;
-            return (
-              <Pressable
-                key={item.name}
-                accessibilityRole="radio"
-                accessibilityState={{ checked: selected }}
-                accessibilityLabel={`Use ${item.name} dial layout`}
-                onPress={() => onLayoutChange(index)}
-                style={[
-                  styles.badge,
-                  {
-                    backgroundColor: selected ? theme.accent : SURFACES.secondary,
-                  },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.badgeText,
-                    {
-                      color: selected
-                        ? theme.light
-                          ? "#ffffff"
-                          : "#000000"
-                        : theme.fg,
-                    },
-                  ]}
-                >
-                  {item.name}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
+        <ChoiceChips
+          options={layouts.map((_, index) => index)}
+          value={layout}
+          theme={theme}
+          label={(index) => layouts[index]?.name ?? "layout"}
+          onChange={onLayoutChange}
+        />
       </SectionContainer>
 
       <SectionContainer separator={false}>
@@ -105,23 +73,6 @@ const styles = StyleSheet.create({
   layoutStyleTitle: {
     ...TYPOGRAPHY.sectionLabel,
     marginBottom: 8,
-  },
-  badgeRail: {
-    width: "100%",
-  },
-  badgeRailContent: {
-    alignItems: "center",
-    paddingVertical: 8,
-  },
-  badge: {
-    minHeight: 36,
-    paddingHorizontal: 14,
-    borderRadius: 999,
-    justifyContent: "center",
-    marginRight: 8,
-  },
-  badgeText: {
-    ...TYPOGRAPHY.badge,
   },
   preview: {
     width: "100%",

@@ -13,32 +13,57 @@ import type { App } from "../launcher/catalog";
 import { search } from "../launcher/catalog";
 import type { Theme } from "../preferences";
 import { SPACING, SURFACES, TYPOGRAPHY } from "../design/tokens";
+import { AppIcon } from "./AppIcon";
 
 type Props = {
   visible: boolean;
   apps: App[];
   favorites: string[];
+  hiddenApps: string[];
+  customCategories: Record<string, string>;
+  recentApps: string[];
+  showRecentApps: boolean;
   theme: Theme;
   statusBarVisible: boolean;
+  searchListTransparency: number;
+  iconStyle: "native" | "monochrome" | "outline";
   onClose(): void;
   onLaunch(app: App): void;
   onToggleFavorite(packageName: string): void;
+  onToggleHidden(packageName: string): void;
 };
 
 export function SearchSheet({
   visible,
   apps,
   favorites,
+  hiddenApps,
+  customCategories,
+  recentApps,
+  showRecentApps,
   theme,
   statusBarVisible,
+  searchListTransparency,
+  iconStyle,
   onClose,
   onLaunch,
   onToggleFavorite,
+  onToggleHidden,
 }: Props) {
   const insets = useSafeAreaInsets();
   const [query, setQuery] = useState("");
 
-  const results = useMemo(() => search(apps, query), [apps, query]);
+  const results = useMemo(() => {
+    const matches = search(apps, query, customCategories);
+    if (query.trim() || !showRecentApps || recentApps.length === 0) return matches;
+    const rank = new Map(recentApps.map((id, index) => [id, index]));
+    return [...matches].sort(
+      (a, b) =>
+        (rank.get(a.packageName) ?? recentApps.length) -
+          (rank.get(b.packageName) ?? recentApps.length) ||
+        a.label.localeCompare(b.label),
+    );
+  }, [apps, customCategories, query, recentApps, showRecentApps]);
   const onDialCount = useMemo(
     () => apps.filter((app) => favorites.includes(app.packageName)).length,
     [apps, favorites],
@@ -118,6 +143,7 @@ export function SearchSheet({
         {/* Results list */}
         <FlatList
           data={results}
+          style={{ opacity: 1 - searchListTransparency }}
           keyExtractor={(item) => item.packageName}
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={styles.listContent}
@@ -128,6 +154,7 @@ export function SearchSheet({
           }
           renderItem={({ item, index }) => {
             const onDial = favorites.includes(item.packageName);
+            const hidden = hiddenApps.includes(item.packageName);
             const isTopMatch = isQueryActive && index === 0;
 
             return (
@@ -137,6 +164,7 @@ export function SearchSheet({
                   isTopMatch && { backgroundColor: SURFACES.elevated },
                 ]}
               >
+                <AppIcon app={item} theme={theme} style={iconStyle} size={24} />
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={`Open ${item.label}`}
@@ -149,9 +177,26 @@ export function SearchSheet({
                   >
                     {item.label}
                   </Text>
+                  {customCategories[item.packageName] ? (
+                    <Text
+                      style={[styles.category, { color: theme.muted }]}
+                      numberOfLines={1}
+                    >
+                      {customCategories[item.packageName]}
+                    </Text>
+                  ) : null}
                 </Pressable>
 
-                {onDial ? (
+                {hidden ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Show ${item.label}`}
+                    onPress={() => onToggleHidden(item.packageName)}
+                    style={styles.addPill}
+                  >
+                    <Text style={[styles.addText, { color: theme.fg }]}>show</Text>
+                  </Pressable>
+                ) : onDial ? (
                   <View style={styles.onDialBadge}>
                     <Text style={[styles.onDialText, { color: theme.muted }]}>
                       on dial
@@ -240,6 +285,10 @@ const styles = StyleSheet.create({
   appLabel: {
     ...TYPOGRAPHY.option,
     fontFamily: "JetBrainsMono",
+  },
+  category: {
+    ...TYPOGRAPHY.meta,
+    marginTop: 2,
   },
   onDialBadge: {
     paddingHorizontal: 8,

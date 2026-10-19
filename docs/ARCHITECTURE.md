@@ -14,11 +14,11 @@ Expo Go cannot host launcher native APIs. Use Expo with a custom development cli
 
 ## Technology decisions and boundaries
 
-Official blank TypeScript Expo template, SDK 57 / React Native 0.86.3 (SDK 58 requires unavailable Android platform 37); pnpm; Expo-compatible dependencies selected by expo install. src/launcher owns Android catalog and launching; src/preferences owns validated persisted preferences; src/themes owns reference palettes and artwork selection; src/home owns clock formatting; src/components owns presentation and dial interaction; App orchestrates presentation. plugins/withAndroidHome.js owns the HOME intent so clean prebuild preserves it. A small local Expo module owns preloaded SoundPool dial-click feedback, which available launcher APIs do not provide.
+Official blank TypeScript Expo template, SDK 57 / React Native 0.86.3 (SDK 58 requires unavailable Android platform 37); pnpm; Expo-compatible dependencies selected by expo install. `src/launcher` owns the Android catalog, launching, notification and shortcut adapters; `src/preferences/schema.ts` owns the versioned, validated domain model; `src/preferences` owns AsyncStorage and private backups; `src/themes` owns reference palettes, artwork and day/night selection; `src/context` owns calendar/alarm and media capability state plus native adapters; `src/notifications` owns notification indicator state; `src/home` owns the home-screen composition; `src/settings` owns screen navigation values; `src/components` owns focused presentation and interaction components; App only owns providers and composition-root wiring. Shared sections, setting rows, choice chips and app icon presentation live in `src/components` and are reused across settings screens. `plugins/withAndroidHome.js` owns the HOME intent so clean prebuild preserves it. Local Expo modules own preloaded SoundPool dial-click feedback, package-level notification access, calendar/alarm reads, Android shortcuts and media controls; each adapter is optional and keeps permission boundaries outside presentation components.
 
 ## Data flow and API strategy
 
-Android package catalog → normalize/deduplicate → user favorites/search → dial → validated launch. AsyncStorage → validated preferences → UI; serialize preference writes. No network API, tRPC, REST, database, auth provider, workspace, or monorepo.
+Android package catalog → normalize/deduplicate → user favorites/search/categories → dial → validated launch. AsyncStorage → schema parser/migration → validated preferences → UI; serialized writes keep persistence ordered. Optional device adapters expose battery, network, notification, calendar and alarm context without blocking startup. No network API, tRPC, REST, database, auth provider, workspace, or monorepo.
 
 ## Background processing and deployment
 
@@ -26,7 +26,7 @@ No queues or background workers. Refresh on foreground and package events; no pe
 
 ## Observability and security
 
-Show actionable catalog, persistence, launch and permission errors. Keep notification text and credentials out of logs. Query packages only for launcher functionality. Only set Iris as home after a user action. Sound respects ringer mode. Optional future notification access must be explained at point of use.
+Show actionable catalog, persistence, launch and permission errors. Keep notification text and credentials out of logs. Query packages only for launcher functionality. Only set Iris as home after a user action. Sound respects ringer mode. Notification and calendar access are optional, user-triggered, and explained at point of use; the adapters retain only package names and calendar/alarm summary data needed for the current screen.
 
 ## Performance and scale
 
@@ -36,8 +36,9 @@ No backend scaling requirement. Use debugOptimized development builds to avoid n
 
 1. Fresh Expo scaffold and reproducible native HOME configuration.
 2. Dial, search, favorites, alphabet navigation, themes, sound/haptics and setup.
-3. Device verification, then complete parity: notification dots, dynamic app shortcuts, wallpaper picker/lock-screen integration, keyboard navigation and motion polish.
-4. BOSS-directed additions.
+3. Modular customization: wallpaper effects, scheduled themes, app labels/categories/visibility, accessibility, launch motion and private local backup.
+4. Platform adapters: weather, lock-screen and hardware-keyboard integration remain isolated platform work. Portable JSON preference backup is available through Android's document picker; notification dots, calendar/alarm context, media controls and dynamic app shortcuts are already available as opt-in adapters. Launcher-level search gestures are implemented in the home interaction layer.
+5. BOSS-directed additions.
 
 ## Verification
 

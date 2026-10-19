@@ -10,7 +10,11 @@ import {
   mod,
 } from "./reference";
 import type { Theme } from "../preferences";
-export type GlyphLabel = { text: string; glyphs: number[] };
+export type GlyphLabel = {
+  text: string;
+  glyphs: number[];
+  notification?: boolean;
+};
 export function drawDial(
   width: number,
   height: number,
@@ -24,6 +28,7 @@ export function drawDial(
   large: SkFont,
   scrubbing: boolean,
   kick: number,
+  showNotificationDots: boolean,
 ) {
   "worklet";
   const layout = layouts[layoutIndex] ?? layouts[DEFAULT_LAYOUT_INDEX];
@@ -143,6 +148,10 @@ export function drawDial(
       font,
       paint,
     );
+    if (showNotificationDots && label.notification && !scrubbing) {
+      color(theme.accent, (1 - a / g.span) ** 1.35);
+      circle(left ? -textWidth - 8 : textWidth + 8, 0, 3);
+    }
     c.restore();
   }
   const off = (left ? 1 : -1) * kick * 4;

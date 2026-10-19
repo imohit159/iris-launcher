@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.0 — 2026-10-19
+
+- Added categorized settings, shared controls, and a focused home-screen composition.
+- Added scheduled themes, wallpaper effects, accessibility options, and launch transitions.
+- Added hidden apps, custom labels, categories, recent-app ranking, and icon styles.
+- Added versioned preference validation and local JSON backup and restore.
+- Added optional notification dots, calendar/alarm cards, battery/network status, media controls, and Android app shortcuts.
+- Added configurable clock search gestures and preference/schedule regression coverage.
+
 ## 0.2.0 — 2026-10-19
 
 - Added the reusable settings, section, separator, wallpaper, dial-layout, and navigation components.

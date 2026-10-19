@@ -13,8 +13,15 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import notices from "../../licenses/notices.json";
+import { AccessibilitySettings } from "./AccessibilitySettings";
+import { AppOrganizationSettings } from "./AppOrganizationSettings";
+import { BackupSettings } from "./BackupSettings";
+import { BlueprintOverlay } from "./BlueprintOverlay";
+import { BehaviorSettings } from "./BehaviorSettings";
 import { Dial } from "./Dial";
 import { DialSettings } from "./DialSettings";
+import { InformationSettings } from "./InformationSettings";
+import { PrivacySettings } from "./PrivacySettings";
 import { ScreenHeader } from "./ScreenHeader";
 import { Section } from "./Section";
 import { SettingButton } from "./SettingsPrimitives";
@@ -31,8 +38,11 @@ import {
 } from "../preferences";
 import { artwork } from "../themes/assets";
 import { SPACING, SURFACES, TYPOGRAPHY } from "../design/tokens";
+import type { SettingsScreen } from "../settings/types";
+import type { NotificationCapability } from "../launcher/notifications";
+import type { CalendarEvent, ContextCapability } from "../context/adapter";
+import type { MediaCapability, MediaState } from "../context/media";
 
-type SettingsScreen = "root" | "wallpaper" | "dial";
 type PanelMode = "settings" | "licenses";
 
 type Props = {
@@ -40,10 +50,12 @@ type Props = {
   panel: PanelMode;
   settingsScreen: SettingsScreen;
   theme: Theme;
+  activeThemeName: ThemeName;
   headingColor: string;
   prefs: Preferences;
   wallpaperTheme: ThemeName | null;
   dialPreviewApps: InstalledApp[];
+  installedApps: InstalledApp[];
   customWallpaperUri: string | null;
   wallpaperBusy: boolean;
   ready: boolean;
@@ -59,12 +71,56 @@ type Props = {
   onStartThemeDial(): void;
   onChooseWallpaper(): void;
   onSelectThemeWallpaper(themeName: ThemeName): void;
+  onWallpaperDimmingChange(value: number): void;
+  onWallpaperBlurChange(value: 0 | 4 | 8 | 12): void;
+  onWallpaperTintChange(value: boolean): void;
+  onWallpaperGrainChange(value: boolean): void;
   onLayoutChange(index: number): void;
   onLeftChange(value: boolean): void;
   onDotsChange(value: boolean): void;
   onSoundChange(value: boolean): void;
   onHapticsChange(value: boolean): void;
+  onSearchListTransparencyChange(value: number): void;
+  onSearchButtonTransparencyChange(value: number): void;
+  onShowRecentAppsChange(value: boolean): void;
+  onLaunchAnimationChange(value: boolean): void;
+  onDoubleTapSearchChange(value: boolean): void;
+  onSwipeUpSearchChange(value: boolean): void;
+  onThemeModeChange(value: "manual" | "system" | "schedule"): void;
+  onDayThemeChange(value: ThemeName): void;
+  onNightThemeChange(value: ThemeName): void;
+  onDayStartHourChange(value: number): void;
+  onNightStartHourChange(value: number): void;
+  onReducedMotionChange(value: boolean): void;
+  onLargeTextChange(value: boolean): void;
+  onHighContrastChange(value: boolean): void;
+  onShowDeviceStatusChange(value: boolean): void;
+  showContextCards: boolean;
+  calendarCapability: ContextCapability;
+  nextAlarmAt: number | null;
+  nextEvent: CalendarEvent | null;
+  onShowContextCardsChange(value: boolean): void;
+  onRequestCalendar(): void;
+  showMediaControls: boolean;
+  mediaCapability: MediaCapability;
+  media: MediaState | null;
+  onShowMediaControlsChange(value: boolean): void;
+  onMediaControl(action: "play" | "pause" | "next" | "previous"): void;
+  onShowBlueprintChange(value: boolean): void;
+  onRenameApp(packageName: string, label: string): void;
+  onCategorizeApp(packageName: string, category: string): void;
+  onToggleFavorite(packageName: string): void;
+  onToggleHidden(packageName: string): void;
+  onMoveFavorite(packageName: string, direction: -1 | 1): void;
+  onIconStyleChange(value: "native" | "monochrome" | "outline"): void;
+  onExportBackup(): void;
+  onExportBackupFile(): void;
+  onRestoreBackup(raw: string): void;
+  onRestoreLocalBackup(): void;
+  onImportBackupFile(): void;
   onChooseApps(): void;
+  notificationCapability: NotificationCapability;
+  onOpenNotificationAccess(): void;
 };
 
 function SettingsScrollView({
@@ -90,10 +146,12 @@ export function SettingsPanel({
   panel,
   settingsScreen,
   theme,
+  activeThemeName,
   headingColor,
   prefs,
   wallpaperTheme,
   dialPreviewApps,
+  installedApps,
   customWallpaperUri,
   wallpaperBusy,
   ready,
@@ -109,17 +167,61 @@ export function SettingsPanel({
   onStartThemeDial,
   onChooseWallpaper,
   onSelectThemeWallpaper,
+  onWallpaperDimmingChange,
+  onWallpaperBlurChange,
+  onWallpaperTintChange,
+  onWallpaperGrainChange,
   onLayoutChange,
   onLeftChange,
   onDotsChange,
   onSoundChange,
   onHapticsChange,
+  onSearchListTransparencyChange,
+  onSearchButtonTransparencyChange,
+  onShowRecentAppsChange,
+  onLaunchAnimationChange,
+  onDoubleTapSearchChange,
+  onSwipeUpSearchChange,
+  onThemeModeChange,
+  onDayThemeChange,
+  onNightThemeChange,
+  onDayStartHourChange,
+  onNightStartHourChange,
+  onReducedMotionChange,
+  onLargeTextChange,
+  onHighContrastChange,
+  onShowDeviceStatusChange,
+  onRenameApp,
+  onCategorizeApp,
+  onToggleFavorite,
+  onToggleHidden,
+  onMoveFavorite,
+  onIconStyleChange,
+  onExportBackup,
+  onExportBackupFile,
+  onRestoreBackup,
+  onRestoreLocalBackup,
+  onImportBackupFile,
   onChooseApps,
+  notificationCapability,
+  onOpenNotificationAccess,
+  showContextCards,
+  calendarCapability,
+  nextAlarmAt,
+  nextEvent,
+  onShowContextCardsChange,
+  onRequestCalendar,
+  showMediaControls,
+  mediaCapability,
+  media,
+  onShowMediaControlsChange,
+  onMediaControl,
+  onShowBlueprintChange,
 }: Props) {
   const wallpaperVisualTheme = themes[wallpaperTheme ?? prefs.theme];
   const activeThemeIndex = Math.max(
     0,
-    THEME_LIST.findIndex(({ name }) => name === prefs.theme),
+    THEME_LIST.findIndex(({ name }) => name === activeThemeName),
   );
   const settingsTitle =
     panel === "licenses"
@@ -128,7 +230,19 @@ export function SettingsPanel({
           ? "Wallpapers"
           : settingsScreen === "dial"
             ? "Dial layout"
-            : "Settings";
+            : settingsScreen === "behavior"
+              ? "Behavior"
+              : settingsScreen === "organization"
+                ? "Apps and labels"
+              : settingsScreen === "accessibility"
+                ? "Accessibility"
+                : settingsScreen === "information"
+                  ? "Information"
+                  : settingsScreen === "privacy"
+                    ? "Privacy"
+                    : settingsScreen === "backup"
+                      ? "Backup and restore"
+                    : "Settings";
 
   return (
     <Modal
@@ -168,11 +282,7 @@ export function SettingsPanel({
           </SettingsScrollView>
         ) : settingsScreen === "root" ? (
           <SettingsScrollView onScroll={onScroll}>
-            <Section
-              separator={false}
-              label="Appearance"
-              labelColor={theme.muted}
-            >
+            <Section first label="Appearance" labelColor={theme.muted}>
               <View style={styles.appearanceGrid}>
               <Pressable
                 accessibilityRole="button"
@@ -268,10 +378,48 @@ export function SettingsPanel({
               />
               <Text style={[styles.note, { color: theme.muted }]}>To switch back later: Android Settings → Apps → Default apps → Home app.</Text>
             </Section>
+            <Section label="Experience" labelColor={theme.muted}>
+              <SettingButton
+                label="Behavior and discovery"
+                onPress={() => onSettingsScreenChange("behavior")}
+                backgroundColor={SURFACES.elevated}
+                accentColor={theme.accent}
+              />
+              <SettingButton
+                label="Apps and labels"
+                onPress={() => onSettingsScreenChange("organization")}
+                backgroundColor={SURFACES.elevated}
+                accentColor={theme.accent}
+              />
+              <SettingButton
+                label="Accessibility"
+                onPress={() => onSettingsScreenChange("accessibility")}
+                backgroundColor={SURFACES.elevated}
+                accentColor={theme.accent}
+              />
+              <SettingButton
+                label="Information"
+                onPress={() => onSettingsScreenChange("information")}
+                backgroundColor={SURFACES.elevated}
+                accentColor={theme.accent}
+              />
+              <SettingButton
+                label="Privacy"
+                onPress={() => onSettingsScreenChange("privacy")}
+                backgroundColor={SURFACES.elevated}
+                accentColor={theme.accent}
+              />
+            </Section>
             <Section label="About" labelColor={theme.muted}>
               <SettingButton
                 label="Open-source licenses"
                 onPress={onOpenLicenses}
+                backgroundColor={SURFACES.elevated}
+                accentColor={theme.accent}
+              />
+              <SettingButton
+                label="Backup and restore"
+                onPress={() => onSettingsScreenChange("backup")}
                 backgroundColor={SURFACES.elevated}
                 accentColor={theme.accent}
               />
@@ -285,11 +433,19 @@ export function SettingsPanel({
               customWallpaperUri={customWallpaperUri}
               busy={wallpaperBusy}
               ready={ready}
+              wallpaperDimming={prefs.wallpaperDimming}
+              wallpaperBlur={prefs.wallpaperBlur}
+              wallpaperTint={prefs.wallpaperTint}
+              wallpaperGrain={prefs.wallpaperGrain}
               onChooseCustom={onChooseWallpaper}
               onSelectTheme={onSelectThemeWallpaper}
+              onWallpaperDimmingChange={onWallpaperDimmingChange}
+              onWallpaperBlurChange={onWallpaperBlurChange}
+              onWallpaperTintChange={onWallpaperTintChange}
+              onWallpaperGrainChange={onWallpaperGrainChange}
             />
           </SettingsScrollView>
-        ) : (
+        ) : settingsScreen === "dial" ? (
           <SettingsScrollView onScroll={onScroll}>
             <DialSettings
               apps={dialPreviewApps}
@@ -307,7 +463,107 @@ export function SettingsPanel({
               onChooseApps={onChooseApps}
             />
           </SettingsScrollView>
+        ) : settingsScreen === "behavior" ? (
+          <SettingsScrollView onScroll={onScroll}>
+            <BehaviorSettings
+              theme={theme}
+              searchListTransparency={prefs.searchListTransparency}
+              searchButtonTransparency={prefs.searchButtonTransparency}
+              showRecentApps={prefs.showRecentApps}
+              launchAnimation={prefs.launchAnimation}
+              doubleTapSearch={prefs.doubleTapSearch}
+              swipeUpSearch={prefs.swipeUpSearch}
+              themeMode={prefs.themeMode}
+              dayTheme={prefs.dayTheme}
+              nightTheme={prefs.nightTheme}
+              dayStartHour={prefs.dayStartHour}
+              nightStartHour={prefs.nightStartHour}
+              onSearchListTransparencyChange={onSearchListTransparencyChange}
+              onSearchButtonTransparencyChange={onSearchButtonTransparencyChange}
+              onShowRecentAppsChange={onShowRecentAppsChange}
+              onLaunchAnimationChange={onLaunchAnimationChange}
+              onDoubleTapSearchChange={onDoubleTapSearchChange}
+              onSwipeUpSearchChange={onSwipeUpSearchChange}
+              onThemeModeChange={onThemeModeChange}
+              onDayThemeChange={onDayThemeChange}
+              onNightThemeChange={onNightThemeChange}
+              onDayStartHourChange={onDayStartHourChange}
+              onNightStartHourChange={onNightStartHourChange}
+            />
+          </SettingsScrollView>
+        ) : settingsScreen === "organization" ? (
+          <SettingsScrollView onScroll={onScroll}>
+            <AppOrganizationSettings
+              apps={installedApps}
+              favorites={prefs.favorites}
+              hiddenApps={prefs.hiddenApps}
+              customLabels={prefs.customLabels}
+              customCategories={prefs.customCategories}
+              iconStyle={prefs.iconStyle}
+              theme={theme}
+              onRename={onRenameApp}
+              onCategorize={onCategorizeApp}
+              onToggleFavorite={onToggleFavorite}
+              onToggleHidden={onToggleHidden}
+              onMoveFavorite={onMoveFavorite}
+              onIconStyleChange={onIconStyleChange}
+            />
+          </SettingsScrollView>
+        ) : settingsScreen === "accessibility" ? (
+          <SettingsScrollView onScroll={onScroll}>
+            <AccessibilitySettings
+              theme={theme}
+              reducedMotion={prefs.reducedMotion}
+              largeText={prefs.largeText}
+              highContrast={prefs.highContrast}
+              onReducedMotionChange={onReducedMotionChange}
+              onLargeTextChange={onLargeTextChange}
+              onHighContrastChange={onHighContrastChange}
+            />
+          </SettingsScrollView>
+        ) : settingsScreen === "information" ? (
+          <SettingsScrollView onScroll={onScroll}>
+            <InformationSettings
+              theme={theme}
+              showDeviceStatus={prefs.showDeviceStatus}
+              onShowDeviceStatusChange={onShowDeviceStatusChange}
+              showContextCards={showContextCards}
+              onShowContextCardsChange={onShowContextCardsChange}
+              calendarCapability={calendarCapability}
+              nextAlarmAt={nextAlarmAt}
+              nextEvent={nextEvent}
+              onRequestCalendar={onRequestCalendar}
+              showMediaControls={showMediaControls}
+              onShowMediaControlsChange={onShowMediaControlsChange}
+              mediaCapability={mediaCapability}
+              media={media}
+              onMediaControl={onMediaControl}
+              showBlueprint={prefs.showBlueprint}
+              onShowBlueprintChange={onShowBlueprintChange}
+            />
+          </SettingsScrollView>
+        ) : settingsScreen === "privacy" ? (
+          <SettingsScrollView onScroll={onScroll}>
+            <PrivacySettings
+              theme={theme}
+              hiddenAppCount={prefs.hiddenApps.length}
+              notificationCapability={notificationCapability}
+              onOpenNotificationAccess={onOpenNotificationAccess}
+            />
+          </SettingsScrollView>
+        ) : (
+          <SettingsScrollView onScroll={onScroll}>
+            <BackupSettings
+              theme={theme}
+              onExport={onExportBackup}
+              onExportFile={onExportBackupFile}
+              onRestore={onRestoreBackup}
+              onRestoreLocal={onRestoreLocalBackup}
+              onImportFile={onImportBackupFile}
+            />
+          </SettingsScrollView>
         )}
+        <BlueprintOverlay enabled={prefs.showBlueprint} />
       </SafeAreaView>
     </Modal>
   );
@@ -323,7 +579,6 @@ const styles = StyleSheet.create({
   title: { ...TYPOGRAPHY.largeHeading },
   note: {
     ...TYPOGRAPHY.body,
-    marginBottom: 20,
     marginHorizontal: 24,
   },
   licenseBody: {

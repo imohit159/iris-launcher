@@ -1,5 +1,6 @@
 import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import type { App } from "../launcher/catalog";
+import type { AppShortcut, ShortcutCapability } from "../launcher/shortcuts";
 import type { Theme } from "../preferences";
 import { SURFACES, TYPOGRAPHY } from "../design/tokens";
 
@@ -12,7 +13,11 @@ type Props = {
   onClose(): void;
   onAppInfo(): void;
   onAppNotifications(): void;
+  shortcuts: AppShortcut[];
+  shortcutCapability: ShortcutCapability;
+  onShortcut(shortcut: AppShortcut): void;
   onRemoveFromDial(): void;
+  onHideApp(): void;
 };
 
 export function QuickMenu({
@@ -24,7 +29,11 @@ export function QuickMenu({
   onClose,
   onAppInfo,
   onAppNotifications,
+  shortcuts,
+  shortcutCapability,
+  onShortcut,
   onRemoveFromDial,
+  onHideApp,
 }: Props) {
   if (!app) return null;
 
@@ -70,6 +79,29 @@ export function QuickMenu({
 
           <View style={[styles.divider, { backgroundColor: SURFACES.secondary }]} />
 
+          {shortcutCapability === "available" && shortcuts.length > 0 ? (
+            <>
+              <Text style={[styles.groupLabel, { color: theme.muted }]}>shortcuts</Text>
+              {shortcuts.map((shortcut) => (
+                <Pressable
+                  key={shortcut.id}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Open ${shortcut.label}`}
+                  onPress={() => {
+                    onShortcut(shortcut);
+                    onClose();
+                  }}
+                  style={styles.menuItem}
+                >
+                  <Text style={[styles.itemText, { color: theme.fg }]} numberOfLines={1}>
+                    {shortcut.label}
+                  </Text>
+                </Pressable>
+              ))}
+              <View style={[styles.divider, { backgroundColor: SURFACES.secondary }]} />
+            </>
+          ) : null}
+
           {/* App Info item */}
           <Pressable
             accessibilityRole="button"
@@ -83,6 +115,18 @@ export function QuickMenu({
             <Text style={[styles.itemText, { color: theme.muted2 }]}>
               app info
             </Text>
+          </Pressable>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Hide app"
+            onPress={() => {
+              onHideApp();
+              onClose();
+            }}
+            style={styles.menuItem}
+          >
+            <Text style={[styles.itemText, { color: theme.muted2 }]}>hide app</Text>
           </Pressable>
 
           {/* App Notifications item (on and off switches) */}
@@ -143,6 +187,13 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     paddingEnd: 12,
     paddingBottom: 8,
+  },
+  groupLabel: {
+    ...TYPOGRAPHY.meta,
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    paddingBottom: 2,
+    textTransform: "uppercase",
   },
   divider: {
     height: 1,

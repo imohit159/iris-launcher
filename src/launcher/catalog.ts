@@ -13,9 +13,15 @@ export function catalog(items: App[]): App[] {
     ).values(),
   ].sort((a, b) => a.label.localeCompare(b.label));
 }
-export function search(items: App[], query: string): App[] {
+export function search(
+  items: App[],
+  query: string,
+  categories: Record<string, string> = {},
+): App[] {
+  const normalized = query.trim().toLocaleLowerCase();
   return items.filter((app) =>
-    app.label.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()),
+    app.label.toLocaleLowerCase().includes(normalized) ||
+    (categories[app.packageName] ?? "").toLocaleLowerCase().includes(normalized),
   );
 }
 export function favorites(items: App[], ids: string[]): App[] {

@@ -23,6 +23,7 @@ test("catalog excludes Iris, removes duplicate packages and sorts labels", () =>
 });
 test("search handles whitespace, casing and empty results", () => {
   assert.equal(search(apps, " BROw ")[0]?.packageName, "browser");
+  assert.equal(search(apps, " utilities ", { alarm: "Utilities" })[0]?.packageName, "alarm");
   assert.deepEqual(search(apps, "missing"), []);
 });
 test("favorites do not silently populate an empty dial", () => {

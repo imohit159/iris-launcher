@@ -5,10 +5,12 @@ import {
   Skia,
   type SkImage,
   ColorMatrix,
+  Blur,
   Group,
   Image,
   LinearGradient,
   Rect,
+  FractalNoise,
   useImage,
   vec,
 } from "@shopify/react-native-skia";
@@ -20,12 +22,20 @@ export function ThemeBackdrop({
   wallpaperTheme,
   left,
   customWallpaper,
+  dimming = 0,
+  wallpaperBlur = 0,
+  wallpaperTint = false,
+  wallpaperGrain = false,
   onWallpaperError,
 }: {
   theme: Theme;
   wallpaperTheme?: Theme | null;
   left: boolean;
   customWallpaper: string | null;
+  dimming?: number;
+  wallpaperBlur?: 0 | 4 | 8 | 12;
+  wallpaperTint?: boolean;
+  wallpaperGrain?: boolean;
   onWallpaperError(): void;
 }) {
   const { width, height } = useWindowDimensions();
@@ -87,7 +97,9 @@ export function ThemeBackdrop({
             width={width}
             height={height}
             fit="cover"
-          />
+          >
+            {wallpaperBlur > 0 ? <Blur blur={wallpaperBlur} /> : null}
+          </Image>
         ) : (
           <Group
             transform={left ? [{ translateX: width }, { scaleX: -1 }] : []}
@@ -124,6 +136,7 @@ export function ThemeBackdrop({
                   0,
                 ]}
               />
+              {wallpaperBlur > 0 ? <Blur blur={wallpaperBlur} /> : null}
             </Image>
           </Group>
         ))}
@@ -156,6 +169,38 @@ export function ThemeBackdrop({
           </Rect>
         </>
       )}
+      {wall && wallpaperTint ? (
+        <Rect
+          x={0}
+          y={0}
+          width={width}
+          height={height}
+          color={theme.accent}
+          opacity={0.1}
+        />
+      ) : null}
+      {wall && wallpaperGrain ? (
+        <Rect x={0} y={0} width={width} height={height} opacity={0.06}>
+          <FractalNoise
+            freqX={0.06}
+            freqY={0.06}
+            octaves={2}
+            seed={0.42}
+            tileWidth={width}
+            tileHeight={height}
+          />
+        </Rect>
+      ) : null}
+      {wall && dimming > 0 ? (
+        <Rect
+          x={0}
+          y={0}
+          width={width}
+          height={height}
+          color="#000000"
+          opacity={dimming}
+        />
+      ) : null}
     </Canvas>
   );
 }

@@ -7,6 +7,8 @@ import { Separator } from "./Separator";
 type SectionContainerProps = {
   children: ReactNode;
   separator?: boolean;
+  /** First content section on a screen has no leading divider. */
+  first?: boolean;
   style?: StyleProp<ViewStyle>;
 };
 
@@ -18,11 +20,12 @@ type SectionProps = SectionContainerProps & {
 export function SectionContainer({
   children,
   separator = true,
+  first = false,
   style,
 }: SectionContainerProps) {
   return (
     <View style={[styles.container, style]}>
-      {separator ? (
+      {separator && !first ? (
         <Separator marginTop={0} marginBottom={SPACING.section} />
       ) : null}
       {children}
@@ -35,10 +38,11 @@ export function Section({
   label,
   labelColor,
   separator = true,
+  first = false,
   style,
 }: SectionProps) {
   return (
-    <SectionContainer separator={separator} style={style}>
+    <SectionContainer separator={separator} first={first} style={style}>
       {label ? (
         <Text
           accessibilityRole="header"

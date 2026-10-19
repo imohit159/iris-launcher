@@ -42,8 +42,12 @@ type Props = {
   themeNames?: string[];
   initialIndex?: number;
   targetIndex?: number | null;
+  reducedMotion?: boolean;
+  textScale?: number;
   onThemeTick?(index: number): void;
   onThemeSelect?(index: number): void;
+  showNotificationDots?: boolean;
+  notificationPackageNames?: readonly string[];
   /** Render the production dial without attaching touch or accessibility actions. */
   preview?: boolean;
 };
@@ -61,8 +65,12 @@ export function Dial({
   themeNames,
   initialIndex = 0,
   targetIndex,
+  reducedMotion: userReducedMotion = false,
+  textScale = 1,
   onThemeTick,
   onThemeSelect,
+  showNotificationDots = false,
+  notificationPackageNames = [],
   preview = false,
 }: Props) {
   const [size, setSize] = useState({ width: 412, height: 892 });
@@ -104,17 +112,18 @@ export function Dial({
 
   const regular = useFont(
     require("../../assets/fonts/jetbrains_mono_regular.ttf"),
-    15,
+    15 * textScale,
   );
   const medium = useFont(
     require("../../assets/fonts/jetbrains_mono_medium.ttf"),
-    15,
+    15 * textScale,
   );
   const large = useFont(
     require("../../assets/fonts/jetbrains_mono_light.ttf"),
-    112,
+    112 * textScale,
   );
-  const reducedMotion = useReducedMotion();
+  const systemReducedMotion = useReducedMotion();
+  const reducedMotion = userReducedMotion || systemReducedMotion;
   const position = useSharedValue(initialIndex),
     origin = useSharedValue(initialIndex),
     anchor = useSharedValue(0);
@@ -137,12 +146,15 @@ export function Dial({
   const labels = useMemo(
     () =>
       regular
-        ? names.map((name) => ({
+        ? names.map((name, index) => ({
             text: displayName(name),
             glyphs: regular.getGlyphIDs(displayName(name)),
+            notification:
+              !themeMode &&
+              notificationPackageNames.includes(apps[index]?.packageName ?? ""),
           }))
         : [],
-    [names, regular],
+    [apps, names, notificationPackageNames, regular, themeMode],
   );
   const alphabet = useMemo(
     () =>
@@ -225,6 +237,7 @@ export function Dial({
           large,
           scrub.get(),
           kick.get(),
+          showNotificationDots,
         )
       : empty,
   );

@@ -1,5 +1,7 @@
 import { useMemo } from "react";
-import { Pressable } from "react-native";
+import { View } from "react-native";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import { scheduleOnRN } from "react-native-worklets";
 import {
   Canvas,
   Picture,
@@ -18,9 +20,12 @@ type Props = {
   width: number;
   left: boolean;
   scrubbing: boolean;
+  textScale?: number;
   theme: Theme;
   onPress(): void;
   onSettings(): void;
+  onDoubleTap?: () => void;
+  onSwipeUp?: () => void;
 };
 export function HomeClock({
   now,
@@ -29,17 +34,20 @@ export function HomeClock({
   width,
   left,
   scrubbing,
+  textScale = 1,
   theme,
   onPress,
   onSettings,
+  onDoubleTap,
+  onSwipeUp,
 }: Props) {
   const timeFont = useFont(
     require("../../assets/fonts/jetbrains_mono_light.ttf"),
-    68,
+    68 * textScale,
   );
   const dateFont = useFont(
     require("../../assets/fonts/jetbrains_mono_regular.ttf"),
-    13,
+    13 * textScale,
   );
   const uses24hourClock = useSystemClockFormat();
   const time = clockTime(now, uses24hourClock),
@@ -103,25 +111,50 @@ export function HomeClock({
     recorder.dispose();
     return result;
   }, [timeFont, dateFont, time, date, width, scale, left, theme]);
+  const gestures = useMemo(() => {
+    const tap = onDoubleTap
+      ? Gesture.Exclusive(
+          Gesture.Tap()
+            .numberOfTaps(2)
+            .onEnd(() => scheduleOnRN(onDoubleTap)),
+          Gesture.Tap().onEnd(() => scheduleOnRN(onPress)),
+        )
+      : Gesture.Tap().onEnd(() => scheduleOnRN(onPress));
+    return Gesture.Race(
+      Gesture.LongPress()
+        .minDuration(500)
+        .onStart(() => scheduleOnRN(onSettings)),
+      Gesture.Pan()
+        .minDistance(18 * scale)
+        .onEnd((event) => {
+          if (onSwipeUp && event.translationY < -36 * scale) {
+            scheduleOnRN(onSwipeUp);
+          }
+        }),
+      tap,
+    );
+  }, [onDoubleTap, onPress, onSettings, onSwipeUp, scale]);
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`${time}, ${date}. Open date and time settings; hold for settings`}
-      onPress={onPress}
-      onLongPress={onSettings}
-      pointerEvents={scrubbing ? "none" : "auto"}
-      style={{
-        position: "absolute",
-        left: 28 * scale,
-        top,
-        width,
-        height: 89.6 * scale,
-        opacity: scrubbing ? 0.25 : 1,
-      }}
-    >
-      <Canvas style={{ width, height: 89.6 * scale }} pointerEvents="none">
-        <Picture picture={picture} />
-      </Canvas>
-    </Pressable>
+    <GestureDetector gesture={gestures}>
+      <View
+        accessibilityRole="button"
+        accessibilityLabel={`${time}, ${date}. Open date and time settings; hold for settings`}
+        onAccessibilityTap={onPress}
+        accessible
+        pointerEvents={scrubbing ? "none" : "auto"}
+        style={{
+          position: "absolute",
+          left: 28 * scale,
+          top,
+          width,
+          height: 89.6 * scale,
+          opacity: scrubbing ? 0.25 : 1,
+        }}
+      >
+        <Canvas style={{ width, height: 89.6 * scale }} pointerEvents="none">
+          <Picture picture={picture} />
+        </Canvas>
+      </View>
+    </GestureDetector>
   );
 }

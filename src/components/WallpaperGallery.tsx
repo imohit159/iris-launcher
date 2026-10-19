@@ -1,8 +1,11 @@
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { type Theme, type ThemeName, THEME_LIST, themes } from "../preferences";
 import { artwork } from "../themes/assets";
 import { SURFACES, TYPOGRAPHY } from "../design/tokens";
 import { SectionContainer } from "./Section";
+import { BlurControl } from "./BlurControl";
+import { SettingRow } from "./SettingRow";
+import { TransparencyControl } from "./TransparencyControl";
 
 type Props = {
   theme: Theme;
@@ -10,8 +13,16 @@ type Props = {
   customWallpaperUri: string | null;
   busy: boolean;
   ready: boolean;
+  wallpaperDimming: number;
+  wallpaperBlur: 0 | 4 | 8 | 12;
+  wallpaperTint: boolean;
+  wallpaperGrain: boolean;
   onChooseCustom(): void;
   onSelectTheme(themeName: ThemeName): void;
+  onWallpaperDimmingChange(value: number): void;
+  onWallpaperBlurChange(value: 0 | 4 | 8 | 12): void;
+  onWallpaperTintChange(value: boolean): void;
+  onWallpaperGrainChange(value: boolean): void;
 };
 
 const wallpaperThemes = THEME_LIST.filter(
@@ -92,12 +103,20 @@ export function WallpaperGallery({
   customWallpaperUri,
   busy,
   ready,
+  wallpaperDimming,
+  wallpaperBlur,
+  wallpaperTint,
+  wallpaperGrain,
   onChooseCustom,
   onSelectTheme,
+  onWallpaperDimmingChange,
+  onWallpaperBlurChange,
+  onWallpaperTintChange,
+  onWallpaperGrainChange,
 }: Props) {
   return (
     <View>
-      <SectionContainer separator={false} style={styles.albumSection}>
+      <SectionContainer first separator={false} style={styles.albumSection}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Choose a photo from albums"
@@ -137,6 +156,41 @@ export function WallpaperGallery({
         accentColor={theme.accent}
         onSelectTheme={onSelectTheme}
       />
+      <SectionContainer style={styles.effectsSection}>
+        <Text style={[styles.effectsTitle, { color: theme.muted }]}>Effects</Text>
+        <TransparencyControl
+          label="Wallpaper dimming"
+          description="Keep text readable over bright artwork"
+          value={wallpaperDimming}
+          theme={theme}
+          onChange={onWallpaperDimmingChange}
+        />
+        <BlurControl value={wallpaperBlur} theme={theme} onChange={onWallpaperBlurChange} />
+        <SettingRow
+          label="Wallpaper tint"
+          description="Blend artwork with the active theme accent"
+          theme={theme}
+          trailing={
+            <Switch
+              accessibilityLabel="Wallpaper tint"
+              value={wallpaperTint}
+              onValueChange={onWallpaperTintChange}
+            />
+          }
+        />
+        <SettingRow
+          label="Film grain"
+          description="Add a light texture over the wallpaper"
+          theme={theme}
+          trailing={
+            <Switch
+              accessibilityLabel="Wallpaper film grain"
+              value={wallpaperGrain}
+              onValueChange={onWallpaperGrainChange}
+            />
+          }
+        />
+      </SectionContainer>
       <Text style={[styles.footer, { color: theme.accent }]}>More wallpapers</Text>
     </View>
   );
@@ -173,6 +227,13 @@ const styles = StyleSheet.create({
   },
   section: {
     marginBottom: 28,
+  },
+  effectsSection: {
+    marginBottom: 12,
+  },
+  effectsTitle: {
+    ...TYPOGRAPHY.sectionLabel,
+    marginBottom: 8,
   },
   sectionHeading: {
     flexDirection: "row",

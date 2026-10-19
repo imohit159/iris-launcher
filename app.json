@@ -2,7 +2,7 @@
   "expo": {
     "name": "Iris",
     "slug": "iris-launcher",
-    "version": "0.2.0",
+    "version": "0.3.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -18,10 +18,11 @@
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.irislauncher",
-      "versionCode": 2,
+      "versionCode": 3,
       "permissions": [
         "android.permission.QUERY_ALL_PACKAGES",
-        "android.permission.VIBRATE"
+        "android.permission.VIBRATE",
+        "android.permission.READ_CALENDAR"
       ],
       "blockedPermissions": [
         "android.permission.CAMERA",
